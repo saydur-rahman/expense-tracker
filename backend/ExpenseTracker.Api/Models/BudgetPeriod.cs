@@ -1,0 +1,23 @@
+namespace ExpenseTracker.Api.Models;
+
+/// <summary>
+/// Explicit representation of a user's "month," resolved from their UserMonthCycleSetting
+/// and created lazily on first access. Budgets attach to this stable row rather than being
+/// computed on the fly, so a period's boundaries never shift after the fact.
+/// </summary>
+public class BudgetPeriod
+{
+    public Guid Id { get; set; }
+
+    public Guid UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string Label { get; set; } = string.Empty;
+
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public ICollection<CategoryBudget> CategoryBudgets { get; set; } = new List<CategoryBudget>();
+    public ICollection<HeadBudget> HeadBudgets { get; set; } = new List<HeadBudget>();
+}

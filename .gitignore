@@ -1,0 +1,21 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env / secrets
+*.env.local
+appsettings.*.local.json
+
+# IDE
+.vs/
+.vscode/
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
