@@ -1,0 +1,9 @@
+@page
+@model Auth019.Pages.Account.ExternalLoginModel
+@{
+    ViewData["Title"] = "Signing in";
+}
+
+<h1>Signing in…</h1>
+<p class="error">@Model.ErrorMessage</p>
+<p class="muted"><a asp-page="./Login" asp-route-returnUrl="@Model.ReturnUrl">Back to sign in</a></p>

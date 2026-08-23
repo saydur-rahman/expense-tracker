@@ -1,20 +1,24 @@
-# .NET
-backend/**/bin/
-backend/**/obj/
+# .NET build output (path-independent, so a restructure can't silently un-ignore it)
+[Bb]in/
+[Oo]bj/
 
 # Node / frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+node_modules/
+dist/
+.vite/
 
 # Env / secrets
 *.env.local
 appsettings.*.local.json
 
+# Aspire
+.aspire/
+
 # IDE
 .vs/
 .vscode/
 *.user
+*.suo
 
 # OS
 .DS_Store

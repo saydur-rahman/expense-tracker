@@ -1,0 +1,45 @@
+@{
+    var title = ViewData["Title"] as string ?? "Sign in";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title — Expense Tracker</title>
+    <style>
+        :root { color-scheme: light dark; --bg:#f9fafb; --card:#fff; --text:#111827; --muted:#6b7280; --border:#d1d5db; --brand:#4f46e5; }
+        @@media (prefers-color-scheme: dark) {
+            :root { --bg:#030712; --card:#111827; --text:#f3f4f6; --muted:#9ca3af; --border:#374151; --brand:#6366f1; }
+        }
+        * { box-sizing: border-box; }
+        body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+               background:var(--bg); color:var(--text); padding:1rem;
+               font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+        .card { width:100%; max-width:24rem; background:var(--card); border:1px solid var(--border);
+                border-radius:.75rem; padding:1.75rem; }
+        h1 { margin:0 0 1.25rem; font-size:1.35rem; text-align:center; }
+        label { display:block; font-size:.875rem; font-weight:500; margin-bottom:.25rem; }
+        .field { margin-bottom:1rem; }
+        input[type=text],input[type=email],input[type=password] {
+            width:100%; padding:.7rem .75rem; font-size:1rem; color:var(--text);
+            background:transparent; border:1px solid var(--border); border-radius:.5rem; }
+        input:focus { outline:2px solid var(--brand); outline-offset:-1px; }
+        button.primary { width:100%; padding:.8rem; font-size:1rem; font-weight:500; color:#fff;
+                         background:var(--brand); border:0; border-radius:.5rem; cursor:pointer; }
+        button.primary:hover { filter:brightness(1.1); }
+        .muted { color:var(--muted); font-size:.875rem; text-align:center; }
+        .muted a { color:var(--brand); }
+        .error { color:#dc2626; font-size:.875rem; margin-bottom:1rem; }
+        .divider { display:flex; align-items:center; gap:.75rem; margin:1.25rem 0; color:var(--muted); font-size:.75rem; }
+        .divider::before,.divider::after { content:""; flex:1; height:1px; background:var(--border); }
+        button.external { width:100%; padding:.7rem; font-size:.95rem; color:var(--text);
+                          background:transparent; border:1px solid var(--border); border-radius:.5rem; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        @RenderBody()
+    </main>
+</body>
+</html>

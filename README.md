@@ -1,39 +1,44 @@
-# Expense Tracker
+# expensetracker019
 
 A free, mobile-first expense tracker. People group their spending into **Categories**, each holding **Heads** (the actual line items they spend against), set a budget per month at both levels, and log expenses against heads.
 
-Built web-first but deliberately mobile-friendly, so it can be wrapped into a native mobile app later without a rewrite.
+Built as **two independent services** behind an OAuth 2.0 authorization server, orchestrated locally with **.NET Aspire**:
+
+| Service | Role |
+|---|---|
+| **Auth019** | OAuth 2.0 / OpenID Connect server (OpenIddict). Owns all user accounts, sign-in, roles, and user administration. |
+| **ExpenseTracker019.Api** | Pure resource server. Owns the expense domain. Holds no user table — it only validates tokens Auth019 issued. |
+| **frontend** | React SPA. Signs in via redirect to Auth019 (Authorization Code + PKCE); never sees a password. |
+
+Each service has its **own database**, so neither can reach into the other's schema.
 
 ---
 
 ## Quick start
 
-**Prerequisites:** .NET 8 SDK, Node.js 20+, SQL Server (LocalDB, Express, or full), and the EF Core CLI (`dotnet tool install --global dotnet-ef`).
+**Prerequisites:** [.NET 10 SDK](https://dotnet.microsoft.com/download), [Node.js](https://nodejs.org) 20+, and **Docker Desktop running** (Aspire runs SQL Server in a container).
 
 ```bash
-# 1. Set up secrets (one time)
-cd backend/ExpenseTracker.Api
-dotnet user-secrets set "Jwt:Key" "<a base64 64-byte key>"
+cd src/ExpenseTracker019.AppHost
+dotnet run
+```
+
+That single command starts SQL Server, both services, and the frontend, and prints a link to the **Aspire dashboard** where you can see every service, its logs, and its traces.
+
+The frontend is at **http://localhost:5173**. Both databases are created and migrated automatically on first run.
+
+### Signing in
+
+Set a seed admin once (from `src/Auth019`):
+
+```bash
 dotnet user-secrets set "AdminSeed:Email" "you@example.com"
-
-# 2. Create the database
-dotnet ef database update
-
-# 3. Run the API  (http://localhost:5080, Swagger at /swagger)
-dotnet run --urls "http://localhost:5080"
-
-# 4. In another terminal, run the frontend  (http://localhost:5173)
-cd frontend
-npm install
-npm run dev
+dotnet user-secrets set "AdminSeed:Password" "SomethingStrong!"
 ```
 
-Then register an account at http://localhost:5173. To become an admin, register with the email you set as `AdminSeed:Email`, then restart the API — it grants the Admin role on startup.
+On startup Auth019 creates that account (if missing) and grants it the **Admin** role. Anyone else can self-register from the sign-in page.
 
-Generate a JWT key with:
-```powershell
-$rng=[Security.Cryptography.RandomNumberGenerator]::Create();$b=New-Object byte[] 64;$rng.GetBytes($b);[Convert]::ToBase64String($b)
-```
+> **Note on ports:** Aspire allocates service ports dynamically. Use the dashboard to find Auth019 and the API — only the frontend is pinned to 5173.
 
 ---
 
@@ -47,8 +52,8 @@ $rng=[Security.Cryptography.RandomNumberGenerator]::Create();$b=New-Object byte[
 | **Per-month reset** | Clear one month's budgets without touching other months or your category setup. |
 | **Expenses** | Logged against a head, with date and optional note. Filter history by head or date range. |
 | **Dashboard** | Budget vs actual per category and head, with over-budget flags. |
-| **Accounts** | Email/password or Google sign-in. |
-| **Admin** | List/search users, see last login, deactivate/reactivate, and view a user's account read-only for support. |
+| **Sign-in** | Email/password or Google, handled entirely by Auth019 over standard OAuth 2.0. |
+| **Admin** | List/search users, see last login, deactivate/reactivate, and view a user's account **read-only** for support. |
 
 ---
 
@@ -57,49 +62,48 @@ $rng=[Security.Cryptography.RandomNumberGenerator]::Create();$b=New-Object byte[
 | Document | What's in it |
 |---|---|
 | **[docs/STATUS.md](docs/STATUS.md)** | What's built, what isn't, known gaps, and what to do next. **Start here when picking the project back up.** |
-| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | The domain model, the business rules that aren't obvious from the code, and why key decisions were made. |
-| **[docs/PLAN.md](docs/PLAN.md)** | The original implementation plan, kept as a record of intended scope. |
-| **[docs/API.md](docs/API.md)** | Endpoint reference. |
-| **[CLAUDE.md](CLAUDE.md)** / **[AGENTS.md](AGENTS.md)** | Orientation for AI coding assistants. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the two services fit together, the domain rules, and why key decisions were made. |
+| [docs/API.md](docs/API.md) | Endpoint and OAuth flow reference. |
+| [docs/PLAN.md](docs/PLAN.md) | The original implementation plan (historical). |
+| [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | Orientation for AI coding assistants. |
 
 ---
 
 ## Project layout
 
 ```
-backend/
-  ExpenseTracker.Api/       ASP.NET Core 8 Web API
-    Models/                 EF Core entities
-    Data/                   DbContext, migrations, role seeding
-    Services/               Business logic (BudgetService holds the core rule)
-    Controllers/            REST endpoints
-    Middleware/             Error handling, impersonation read-only guard
-  tests/ExpenseTracker.Tests/   xUnit tests
-frontend/
-  src/
-    api/                    Typed API client per resource
-    auth/                   Auth context and route guards
-    features/               One folder per screen area
-    layouts/                App shell (bottom nav on mobile, top nav on desktop)
-.claude/skills/             Task recipes (run-dev, ef-migration, db-reset, …)
+expensetracker019.sln
+Directory.Build.props            shared TFM / language settings
+Directory.Packages.props         central package versions
+src/
+  Auth019/                       OAuth2 + OIDC server, Identity, user admin
+    Controllers/                 authorization + admin endpoints
+    Pages/Account/               sign-in, register, external login (server-rendered)
+    Services/                    token exchange, claim destinations, admin service
+  ExpenseTracker019.Api/         resource server: the expense domain
+    Models/ Data/ Services/ Controllers/ Authorization/
+  ExpenseTracker019.AppHost/     Aspire orchestration
+  ExpenseTracker019.ServiceDefaults/  telemetry, health checks, resilience
+  frontend/                      React SPA
+tests/ExpenseTracker019.Tests/   xUnit
+.claude/skills/                  task recipes (run-dev, ef-migration, …)
 ```
 
 ---
 
 ## Tech stack
 
-**Backend** — ASP.NET Core 8, EF Core, SQL Server, ASP.NET Identity with JWT bearer tokens.
-**Frontend** — React 19 + TypeScript (Vite), React Router, TanStack Query, Tailwind CSS v4, React Hook Form + Zod.
-
-The API is a pure REST backend and the frontend a standalone SPA — that separation is what makes the eventual mobile port straightforward.
+**Backend** — .NET 10, ASP.NET Core, EF Core, SQL Server, OpenIddict 7, ASP.NET Identity.
+**Frontend** — React 19 + TypeScript (Vite), oidc-client-ts, React Router, TanStack Query, Tailwind CSS v4.
+**Orchestration** — .NET Aspire 13.
 
 ---
 
 ## Testing
 
 ```bash
-cd backend && dotnet test          # unit tests
-cd frontend && npx tsc --noEmit -p tsconfig.app.json   # typecheck
+dotnet test                                    # unit tests
+cd src/frontend && npx tsc --noEmit -p tsconfig.app.json   # typecheck
 ```
 
-For manual API checks, see `.claude/skills/api-smoke-test/SKILL.md`.
+For manual API and OAuth checks, see `.claude/skills/api-smoke-test/SKILL.md`.

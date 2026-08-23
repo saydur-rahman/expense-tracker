@@ -1,29 +1,48 @@
 ---
 name: run-dev
-description: Start the Expense Tracker backend (ASP.NET Core API) and frontend (Vite React dev server) together for local development. Use when the user wants to run, start, or preview the app locally.
+description: Start the whole expensetracker019 stack (SQL Server, Auth019, the expense API, and the React frontend) with .NET Aspire. Use when the user wants to run, start, or preview the app locally.
 ---
 
 # run-dev
 
-Starts both halves of the stack so the app can be exercised end-to-end in a browser.
+One command starts everything — Aspire orchestrates SQL Server, both services, and the frontend.
 
-## Steps
+## Prerequisite
 
-1. Start the backend API (from `backend/ExpenseTracker.Api`):
-   ```
-   dotnet run --urls "http://localhost:5080"
-   ```
-   Swagger UI is available at `http://localhost:5080/swagger` in Development.
+**Docker Desktop must be running** — Aspire runs SQL Server in a container. Check with `docker ps`; if it fails, start Docker Desktop and wait for the daemon (`until docker ps >/dev/null 2>&1; do sleep 5; done`).
 
-2. Start the frontend (from `frontend`):
-   ```
-   npm run dev -- --port 5173
-   ```
-   Served at `http://localhost:5173`. `frontend/.env.development` already points `VITE_API_BASE_URL` at `http://localhost:5080`, and the backend's CORS policy (`Cors:AllowedOrigins` in `appsettings.json`) already allows `http://localhost:5173`.
+## Run
 
-3. Run both in the background (e.g. `run_in_background` / separate terminals) so they can be watched together. Check `dotnet run` output for "Now listening on" and the Vite output for "Local:" to confirm both are up before opening a browser.
+From `src/ExpenseTracker019.AppHost`:
+```
+dotnet run
+```
+
+The console prints a link to the **Aspire dashboard**, which lists every resource with its URL, logs, and traces. The frontend is at **http://localhost:5173**.
+
+Both databases are created and migrated automatically at startup, and Auth019 seeds roles, OAuth scopes, the SPA client registration, and the configured admin.
 
 ## Notes
 
-- The backend needs a local SQL Server instance reachable via the connection string in `backend/ExpenseTracker.Api/appsettings.Development.json` (`Server=.;Database=ExpenseTrackerDb;...`) and the database migrated — see the `ef-migration` skill if `dotnet ef database update` hasn't been run yet.
-- The JWT signing key and Google OAuth client ID live in .NET user-secrets for this project (`dotnet user-secrets list` from `backend/ExpenseTracker.Api` to inspect), not in any committed file.
+- **Only the frontend has a fixed port.** Auth019 and the expense API get dynamically allocated ports — read them from the dashboard rather than assuming.
+- First run is slow: it pulls the SQL Server image. If the Aspire CLI reports a start timeout, raise it: `ASPIRE_CLI_START_TIMEOUT=600 dotnet run`.
+- Running over plain HTTP locally needs `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` in some setups.
+- To stop cleanly, Ctrl+C the AppHost. If run detached, kill the `dcp`, `Auth019`, `ExpenseTracker019.Api`, and `node` processes — orphans hold ports and block the next run.
+
+## Running a service on its own
+
+Occasionally useful for debugging one service. Supply the connection string and issuer yourself:
+
+```
+# Auth019
+cd src/Auth019
+ConnectionStrings__auth019db="Server=.;Database=Auth019Db;Trusted_Connection=True;TrustServerCertificate=True;" \
+  dotnet run --urls "http://localhost:5090"
+
+# Expense API (needs Auth019 running first)
+cd src/ExpenseTracker019.Api
+ConnectionStrings__expensedb="Server=.;Database=ExpenseTracker019Db;Trusted_Connection=True;TrustServerCertificate=True;" \
+  Auth019__Issuer="http://localhost:5090/" dotnet run --urls "http://localhost:5080"
+```
+
+The issuer must match exactly what Auth019 puts in `iss`, or the API rejects every token with `invalid_token`.

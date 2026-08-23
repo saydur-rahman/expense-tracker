@@ -1,10 +1,16 @@
 # Expense Tracker — Implementation Plan
 
-> **Historical record.** This is the plan the project was built from, kept for the requirements
-> and reasoning it captures. It describes intended scope, not necessarily current state — for
-> what actually exists today see [STATUS.md](STATUS.md), and for how the system works see
-> [ARCHITECTURE.md](ARCHITECTURE.md). All milestones here are complete except Milestone 7
-> (mobile polish).
+> **Historical record — partly superseded.** This is the plan the project was originally built
+> from, kept for the requirements and reasoning it captures. **The architecture has since changed
+> substantially**: authentication was extracted into a separate OAuth 2.0 server (Auth019), the
+> expense API became a pure resource server, the solution moved to .NET 10, and .NET Aspire now
+> orchestrates everything. Sections below describing a single API with embedded ASP.NET Identity,
+> JWT issuance, and custom impersonation middleware **no longer reflect the code**.
+>
+> The *domain* requirements here are still accurate and still enforced.
+>
+> For how the system actually works see [ARCHITECTURE.md](ARCHITECTURE.md); for current state see
+> [STATUS.md](STATUS.md).
 
 ## Context
 

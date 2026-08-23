@@ -1,0 +1,42 @@
+@page
+@model Auth019.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<h1>Sign in</h1>
+
+<form method="post">
+    <input type="hidden" asp-for="ReturnUrl" />
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <p class="error">@Model.ErrorMessage</p>
+    }
+
+    <div class="field">
+        <label asp-for="Input.Email">Email</label>
+        <input asp-for="Input.Email" type="email" autocomplete="username" required />
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Password">Password</label>
+        <input asp-for="Input.Password" type="password" autocomplete="current-password" required />
+    </div>
+
+    <button type="submit" class="primary">Sign in</button>
+</form>
+
+@if (Model.HasGoogleLogin)
+{
+    <div class="divider">OR</div>
+    <form method="post" asp-page-handler="ExternalLogin">
+        <input type="hidden" asp-for="ReturnUrl" />
+        <input type="hidden" name="provider" value="Google" />
+        <button type="submit" class="external">Continue with Google</button>
+    </form>
+}
+
+<p class="muted" style="margin-top:1.5rem">
+    No account? <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Create one</a>
+</p>

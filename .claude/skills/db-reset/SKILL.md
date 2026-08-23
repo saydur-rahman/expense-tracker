@@ -1,22 +1,38 @@
 ---
 name: db-reset
-description: Drop and recreate the local Expense Tracker development database from scratch, then reapply all migrations. Use when the local database is in a broken/inconsistent state (e.g. after editing an already-applied migration, or during early schema churn) and needs a clean slate.
+description: Drop and recreate the local expensetracker019 development databases from scratch. Use when local data is in a broken or inconsistent state and needs a clean slate.
 ---
 
 # db-reset
 
-Recovers from a broken local migration history by dropping the dev database and rebuilding it from the current migrations.
+Two databases exist — `auth019db` (identity) and `expensedb` (expense domain). Decide whether you need to reset one or both.
 
-## Steps
+**Resetting only `auth019db` orphans the expense data**, because expense rows carry the old user ids. For a genuinely clean slate, reset both.
 
-From `backend/ExpenseTracker.Api`:
+## With Aspire (the usual case)
+
+Aspire's SQL Server container keeps its data in a volume (`.WithDataVolume()`), so data survives restarts. To wipe it:
+
+1. Stop the AppHost.
+2. Remove the container and its volume:
+   ```
+   docker ps -a --filter "name=sql" --format "{{.Names}}"
+   docker rm -f <container-name>
+   docker volume ls --filter "name=sql" --format "{{.Name}}"
+   docker volume rm <volume-name>
+   ```
+3. Start the AppHost again — both databases are recreated, migrated, and reseeded.
+
+## Standalone local SQL Server
+
+From the relevant project:
 ```
 dotnet ef database drop --force
 dotnet ef database update
 ```
 
-Optionally re-seed afterward using the `seed-data` skill so there's demo data to work with again.
+## ⚠️ Warning
 
-## Warning
+This permanently deletes all local data, including any accounts you registered. Only ever do it against local development databases. **Confirm with the user first** if there's any chance the local data matters to them.
 
-This permanently deletes all data in the local `ExpenseTrackerDb` database. Only use it for the local development database — never against a shared or production database. Confirm with the user before running this if there's any chance the local database holds data they care about (e.g. manually entered test expenses they want to keep).
+After a reset, Auth019 recreates the seed admin from `AdminSeed:Email` / `AdminSeed:Password` in user-secrets; everyone else must re-register.

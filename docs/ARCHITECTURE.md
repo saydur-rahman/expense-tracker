@@ -1,140 +1,172 @@
 # Architecture
 
-How the app is built and — more importantly — **why**. The rules below are load-bearing: changing them casually will break the product's guarantees.
+How the system is built and — more importantly — **why**. The rules below are load-bearing: changing them casually breaks the product's guarantees.
 
 ---
 
 ## Shape of the system
 
 ```
-┌─────────────────┐         REST + JWT          ┌──────────────────┐
-│  React SPA      │ ──────────────────────────► │  ASP.NET Core    │ ──► SQL Server
-│  (Vite, TS)     │ ◄────────────────────────── │  Web API (.NET 8)│
-└─────────────────┘      JSON, Bearer header    └──────────────────┘
+                    ┌──────────────────────────┐
+                    │  Auth019                 │
+   ┌── redirect ───►│  OAuth2 / OIDC server    │──► Auth019Db
+   │   (sign in)    │  users · roles · tokens  │    (Identity + OpenIddict)
+   │                └──────────────────────────┘
+   │                      ▲            ▲
+┌──┴──────────────┐       │ JWKS       │ token exchange
+│  React SPA      │  code+PKCE         │ (impersonation)
+│  (browser)      │───────┘            │
+└─────────────────┘                    │
+   │  Bearer token                     │
+   ▼                                   │
+┌──────────────────────────┐           │
+│  ExpenseTracker019.Api   │───────────┘
+│  resource server only    │──► ExpenseDb (no user table)
+└──────────────────────────┘
 ```
 
-The frontend and backend are fully separate. The API knows nothing about the SPA; the SPA talks to it purely over REST with a bearer token.
+Three deployable pieces, orchestrated in development by **.NET Aspire** (`ExpenseTracker019.AppHost`), which also runs SQL Server in a container and wires the connection strings and service URLs.
 
-**Why:** the stated goal is to convert this into a mobile app later. A React SPA over a pure REST API means a React Native client can reuse the same API layer and the same auth, unchanged. This is also why auth uses **JWT in an `Authorization` header rather than cookies** — that works identically inside a WebView or native HTTP client, whereas cookie auth brings CORS and redirect complications.
+### Why authentication is a separate service
 
-**Backend is a single project**, organised by folders (`Models/`, `Data/`, `Services/`, `Controllers/`, `Dtos/`), not a layered multi-project solution. The app is small and the user asked to keep it simple; splitting into Domain/Application/Infrastructure libraries would add ceremony without payoff. Revisit only if it genuinely outgrows this.
+Auth019 is the single owner of identity. The expense API has **no user table, no password handling, and issues no tokens** — it only validates what Auth019 signed. That means:
+
+- User data has exactly one home, so there is no sync problem between services.
+- The API's attack surface shrinks to "validate a signature and check scopes".
+- Any future service (a mobile app, a reporting service) authenticates the same way without duplicating identity code.
+
+The two databases are genuinely separate. The API references users only by the `UserId` taken from a token's `sub` claim, with **no foreign key** to a users table — that FK cannot exist across a service boundary, and pretending otherwise is what turns "separate services" into a distributed monolith.
+
+### Why the SPA uses Authorization Code + PKCE
+
+The browser app is a **public client**: it cannot keep a secret. So it holds no client secret, and PKCE is what proves a code redemption came from the same app that started the flow.
+
+The SPA **never sees a password**. Sign-in happens on Auth019's own server-rendered pages; the SPA only ever receives tokens. This is also why the login/register pages live in `Auth019/Pages/Account/` rather than in React.
+
+Tokens are kept in `sessionStorage` (not `localStorage`) so they die with the tab.
 
 ---
 
 ## Domain model
 
 ```
-ApplicationUser
-├── UserMonthCycleSetting  (append-only history of cycle start days)
-├── Category               (soft-deletable, renameable)
-│   └── Head               (soft-deletable, renameable)
-│       └── Expense        ← every expense hangs off a Head, never a bare Category
-├── BudgetPeriod           (one user's concrete "month": start + end dates)
-│   ├── CategoryBudget     (period × category → amount)
-│   └── HeadBudget         (period × head → amount)
-└── RefreshToken
+Category                (soft-deletable, renameable)
+└── Head                (soft-deletable, renameable)
+    └── Expense         ← every expense hangs off a Head, never a bare Category
+
+BudgetPeriod            (one user's concrete "month": start + end dates)
+├── CategoryBudget      (period × category → amount)
+└── HeadBudget          (period × head → amount)
+
+UserMonthCycleSetting   (append-only history of cycle start days)
 ```
 
-A **Category** is a grouping ("Food"). A **Head** is what you actually spend on ("Groceries", "Dining out"). Budgets exist at both levels; spending only happens at head level.
+A **Category** is a grouping ("Food"). A **Head** is what you actually spend on ("Groceries"). Budgets exist at both levels; spending only happens at head level.
 
 ---
 
-## The four rules that matter
+## The five rules that matter
 
 ### 1. Head budgets can never exceed their category's budget
 
 The core business rule. Enforced in `BudgetService`, **not** as a database constraint — it's a cross-row `SUM` comparison, which a `CHECK` constraint can't express without triggers.
 
-Concretely:
-- A **category budget must exist first**. Setting a head budget with no category budget is rejected — the whole point is bounding heads against a total.
-- Setting or raising a head budget sums the *other* heads in that category for that period and rejects if the new total would exceed the category budget. The error names how much room is actually left.
-- **Lowering a category budget below its heads' current total is rejected** rather than allowing a temporarily-invalid state. The invariant holds at all times.
-- Clearing a category's budget for a month **also clears its heads' budgets for that month** — head budgets only exist within a category budget's bounds, so leaving them unbounded would violate the rule.
+- A **category budget must exist first**. Setting a head budget with no category budget is rejected.
+- Setting or raising a head budget sums the *other* heads for that period and rejects if the total would exceed the category budget, naming how much room is actually left.
+- **Lowering a category budget below its heads' total is rejected** rather than allowing a temporarily-invalid state.
+- Clearing a category's budget for a month **also clears its heads' budgets for that month** — head budgets only exist within a category budget's bounds.
 
 Each check-then-write runs in a transaction so a double-submit can't slip past.
 
 ### 2. Categories and Heads are archived, never deleted
 
-The user's requirement: *"once i already have a category or head set it can [be] removed without removing all its relevant data."*
+The requirement: *"once i already have a category or head set it can [be] removed without removing all its relevant data."*
 
-So "remove" sets `IsArchived = true`. EF Core **global query filters** hide archived rows from ordinary queries, so normal screens don't need to remember to filter.
+"Remove" sets `IsArchived = true`. EF Core **global query filters** hide archived rows from ordinary queries.
 
-The consequence to understand: **history and report queries must call `IgnoreQueryFilters()`**, otherwise an expense whose head was archived would silently vanish from the very history it's meant to preserve. `ExpenseService` and `ReportService` both do this deliberately. EF will warn at migration time about required relationships with query filters — that warning is expected and is exactly this tradeoff.
+The consequence to understand: **history and report queries must call `IgnoreQueryFilters()`**, or an expense whose head was archived would silently vanish from the very history it's meant to preserve. `ExpenseService` and `ReportService` both do this deliberately.
 
-Related behaviours:
-- Archiving a category cascades to archiving its heads, so the pair stays consistent.
-- New expenses **cannot** target an archived head — history is preserved, but the head is closed to new spending.
-- An archived name becomes free to reuse.
-- Reports include archived items only when they hold that period's spending or budget, so old items don't clutter current views.
-- Expenses themselves are hard-deleted; deleting a mistyped expense is a correction, not a loss of history.
+Related behaviours: archiving a category cascades to its heads; new expenses cannot target an archived head; an archived name becomes free to reuse; reports include archived items only when they hold that period's spending or budget. Expenses themselves are hard-deleted — correcting a mistyped expense is not a loss of history.
 
 ### 3. A "month" is a stored row, not calendar math
 
-Each user picks the day their month starts (`UserMonthCycleSetting.StartDay`) — 1 for calendar months, 25 for salary-to-salary. Only the start day is stored; the end is always "the day before the next start."
+Each user picks the day their month starts — 1 for calendar months, 25 for salary-to-salary. Only the start day is stored; the end is always "the day before the next start."
 
 `MonthCycleMath` (pure, unit-tested) handles the edges: a start day of 31 **clamps to the last day** in shorter months, and periods stay contiguous across year boundaries.
 
-Resolved periods are persisted as `BudgetPeriod` rows rather than recomputed on the fly, for two reasons:
-1. Budgets need a stable foreign key to attach to.
-2. If a user later changes their cycle, past periods must not silently shift underneath budgets already set against them.
+Resolved periods are persisted as `BudgetPeriod` rows because budgets need a stable foreign key, and because a later cycle change must not shift periods that budgets already hang off. Reinforcing that: **an existing period covering a date always wins**, and cycle settings are stored append-only rather than overwritten.
 
-Reinforcing that: **an existing period covering a date always wins.** `MonthCycleService.ResolvePeriodContainingAsync` looks for a stored period first and only computes a new one if none covers the date. Cycle settings are also stored append-only (effective-dated) rather than overwritten.
+### 4. Impersonation is read-only, and enforced as an ordinary scope check
 
-Expenses store only their date — the period they belong to is resolved at query time by matching against period ranges. Nothing needs reassigning if periods change.
+An admin can view a user's account for support but **never act as them**. The mechanism is standard OAuth, not a bespoke side-channel:
 
-### 4. Impersonation is read-only and can't escalate
+- **Scopes are split**: `expense.read` and `expense.write`.
+- An admin exchanges their own token via **RFC 8693 token exchange** (`TokenExchangeHandler`) for a token whose subject is the target user and whose scope is **`expense.read` only**, with an `imp_by` claim naming the acting admin.
+- That token carries **no roles** and **no refresh token** — it expires in 15 minutes and cannot be silently extended.
+- The resource server enforces it through `RequireWriteScopeFilter`, a **global** filter requiring `expense.write` on every non-GET request. Applied globally rather than per-action so an endpoint added later is protected by default.
 
-An admin can view a user's account for support, but **never act as them**. Layered defences:
+The elegance here is that the expense API needs no concept of impersonation at all — it just checks a scope. Additional guards in `TokenExchangeHandler`: an admin cannot impersonate themselves, another admin, or a deactivated user, and an already-impersonated session cannot chain another exchange.
 
-- **The token** is short-lived (15 min), carries `imp_readonly=true` and `imp_by=<admin id>`, has **no role claims**, and has **no refresh token** — it expires and cannot be silently extended.
-- **`ImpersonationReadOnlyMiddleware`** rejects every non-`GET` request centrally. This is deliberately not per-endpoint: a write endpoint added later is read-only under impersonation **by default**, with no one needing to remember the check.
-- **`/api/admin/*` is blocked** during impersonation, closing the privilege round-trip.
-- **Admins cannot be impersonated**, so one admin can't borrow another's authority.
-- **`/api/auth/me` reports no roles** while impersonating, so the frontend can't be tricked into showing admin UI.
+### 5. Deactivation is checked at every token-issuing path
 
-Account **deactivation** is checked at *every* token-issuing path — login, Google login, and refresh — and revokes outstanding refresh tokens. Without the refresh check, a deactivated user holding a refresh token could keep minting access tokens indefinitely.
+`IsActive = false` blocks the **authorize** endpoint, the **refresh_token** grant, and **token exchange**, and `AdminService` revokes the user's stored tokens.
+
+Note the honest limit: access tokens are self-contained JWTs, so an already-issued one stays valid until it expires (15 minutes). Revocation covers refresh tokens and authorization codes; closing the access-token window entirely would require reference tokens and a validation round-trip per request.
 
 ---
 
 ## Authorization model
 
-Two roles via ASP.NET Identity's built-in role system (`User`, `Admin`) rather than a custom "user type" column — that gives role claims in the JWT, `[Authorize(Roles = …)]` on endpoints, and room for more roles without a schema change.
+Roles come from ASP.NET Identity (`User`, `Admin`) and travel as `role` claims in the access token. The **first admin is seeded from configuration** (`AdminSeed:Email`), so no admin identity is committed to the repo.
 
-The **first admin is seeded from configuration** (`AdminSeed:Email`): on startup, if a user with that email exists, they're granted the Admin role. Nothing is hardcoded in the repo and it works identically on the host.
+**Tenant isolation** is the boundary that matters: every expense-API query is scoped by the user id from the token's `sub` claim via `ICurrentUser`. A client-supplied user id is never trusted. Soft-delete query filters are a *convenience*, not a security boundary.
 
-**Tenant isolation** is the important boundary: every service scopes its queries by the authenticated user's id, taken from the JWT `sub` claim via `ICurrentUser`. A client-supplied user id is never trusted. Soft-delete query filters are a *convenience*, not a security boundary — the `UserId` scoping is what actually keeps users' data apart.
+Auth019's own admin API additionally requires the `auth.admin` scope **and** the Admin role, so an impersonation token (which has neither) cannot reach it.
+
+---
+
+## Aspire orchestration
+
+`AppHost.cs` declares the topology: one SQL Server container with two databases, both services, and the frontend, with `WaitFor` dependencies so nothing starts before what it needs.
+
+Two details worth knowing, both of which caused real bugs:
+
+**Everyone must agree on one issuer string.** Left alone, Auth019 derives `iss` from the request host it sees (Aspire's proxy), while the API is told a different internal address — and validation fails on the mismatch. `AppHost` therefore pins one `authIssuer` value and passes it to both.
+
+**Vite must honour Aspire's `PORT`.** Aspire's proxy forwards to a specific port; Vite otherwise picks its own and drifts to the next free one, leaving the proxy pointing at nothing. `vite.config.ts` reads `process.env.PORT` with `strictPort: true` so a clash fails loudly.
+
+**Deployment**: Aspire is a development-time orchestrator. For production it publishes container artifacts (Azure Container Apps, or docker-compose via Aspirate) — the AppHost itself does not run in production.
 
 ---
 
 ## Error handling
 
-Domain errors derive from `AppException` with a status code (`ValidationAppException` → 400, `UnauthorizedAppException` → 401, `ForbiddenAppException` → 403, `NotFoundAppException` → 404, `ConflictAppException` → 409). `ExceptionHandlingMiddleware` maps them to RFC 7807 problem-details responses; anything else becomes a logged 500 with no internals leaked.
+Domain errors derive from `AppException` with a status code (400/401/403/404/409); middleware maps them to RFC 7807 problem details. Anything else becomes a logged 500 with no internals leaked. In Auth019 the middleware is scoped to `/api` only, so the OAuth endpoints return protocol-correct OAuth errors instead.
 
-Error messages are written for end users and say what to do next — e.g. *"That would put this category's heads at 1000.01, over its 1000 budget. At most 400 is left for this head."* Keep that standard when adding errors.
+Error messages are written for end users and say what to do next — e.g. *"That would put this category's heads at 1000.01, over its 1000 budget. At most 400 is left for this head."* Keep that standard.
 
 ---
 
 ## Frontend structure
 
-- `api/` — one typed module per resource, over a shared `client.ts` that attaches the bearer token and throws a typed `ApiError`
-- `auth/` — `AuthContext` plus route guards: `ProtectedRoute` (signed in), `AdminRoute` (admin role), `RequireMonthCycle` (onboarding)
-- `features/` — one folder per screen area
-- `layouts/AppLayout` — bottom tab bar on mobile, top nav on desktop
+- `auth/oidc.ts` — the `UserManager` (PKCE config) plus the impersonation-token stash
+- `auth/AuthContext.tsx` — derives the current user from the access token **actually being sent**, so an impersonated session reports no roles and admin UI cannot appear
+- `auth/jwt.ts` — decodes tokens **for display only**; never a security decision
+- `api/client.ts` — attaches the right bearer token (impersonation token wins) and throws typed `ApiError`
+- `features/` — one folder per screen area; `layouts/AppLayout` gives bottom-tab nav on mobile, top nav on desktop
 
-Server state lives in **TanStack Query**; React state is only for forms and UI. Mutations invalidate query keys rather than hand-updating caches.
-
-Impersonation on the client keeps the **admin's own token stashed** under a separate key, so exiting restores it without a re-login. The amber banner is always visible while impersonating.
-
-Mobile-first: base styles target narrow viewports, `md:`/`lg:` breakpoints layer on desktop. The API base URL comes from an env var so a packaged mobile build can point elsewhere.
+Server state lives in TanStack Query; mutations invalidate query keys rather than hand-patching caches.
 
 ---
 
 ## Things that will bite you
 
-**Adding a non-nullable column with a C# default.** EF backfills existing rows with the *SQL type default*, not your C# initializer. `ApplicationUser.IsActive = true` produced a migration with `defaultValue: false` and deactivated every existing account. Always add `HasDefaultValue(...)` in `AppDbContext` to match. Read generated migrations before applying them.
+**Adding a non-nullable column with a C# default.** EF backfills existing rows with the *SQL type default*, not your initializer. `IsActive = true` once generated `defaultValue: false` and deactivated every account. Always add a matching `HasDefaultValue(...)`, and read generated migrations before applying them.
 
-**JWT claim remapping.** ASP.NET Core rewrites `sub` to a long `ClaimTypes.*` URI unless `MapInboundClaims = false` — which is set in `Program.cs`. Don't remove it; `ICurrentUser` depends on reading `sub` directly.
+**OpenIddict requires HTTPS.** `DisableTransportSecurityRequirement()` is set **in Development only** so Aspire can wire things over plain HTTP. Never relax it elsewhere.
 
-**Query filters and eager loading.** An `Include` of a filtered entity silently drops archived rows. If a query needs archived data, `IgnoreQueryFilters()` must be on the query — this is why history queries look different from list queries.
+**Token exchange reads the subject token from the request body**, not an `Authorization` header — so `TokenExchangeHandler` authenticates with the *server* scheme, not the validation scheme.
 
-**Testing on Windows.** Use PowerShell `Invoke-RestMethod`, not `curl` — `curl` mangles JSON bodies and hides error payloads in this environment.
+**Query filters and eager loading.** An `Include` of a filtered entity silently drops archived rows.
+
+**Testing on Windows.** Use PowerShell `Invoke-RestMethod`, not `curl` — `curl` mangles JSON bodies here. And `sqlcmd` needs `-I` (quoted identifiers) to `UPDATE` tables that carry filtered indexes, or the statement fails while looking like it worked.
