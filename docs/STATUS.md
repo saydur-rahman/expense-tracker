@@ -8,7 +8,7 @@ Read this first when picking the project back up. It records what is actually bu
 
 ## Summary
 
-The application is **feature-complete against the original spec and works end to end**. Every milestone in [PLAN.md](PLAN.md) is done except the mobile polish pass. 26 API endpoints, 8 screens, 2 migrations applied.
+The application is **feature-complete against the original spec and works end to end**. Every milestone in [PLAN.md](PLAN.md) is done except the mobile polish pass. 26 API endpoints, 8 screens, 2 migrations applied, committed as `ce8bbaf`.
 
 The main caveat: **the UI has never been opened in a browser.** See [Known gaps](#known-gaps).
 
@@ -65,19 +65,15 @@ Layouts were written mobile-first with a bottom tab bar and touch-sized targets,
 ### 5. Test coverage is narrow
 Only `MonthCycleMath` has unit tests (11, all passing). The budget constraint — the most important rule in the app — is verified by manual API calls, **not** by automated tests. That's the most valuable gap to close: it's pure service logic and easy to test.
 
-### 6. Not committed to git
-The repo is initialised but nothing has been committed yet.
-
 ---
 
 ## Suggested next steps
 
 1. **Browser-test the whole flow** (gap 1) — highest value, cheapest.
-2. **Commit the current state** so there's a baseline to work from.
-3. **Add unit tests for `BudgetService`** covering the constraint edge cases (gap 5).
-4. **Mobile polish pass** (gap 3).
-5. **Wire up Google sign-in** when you have a client ID (gap 2).
-6. **Deployment to SmarterASP.NET** — deliberately out of scope so far, never attempted. Needs: publish profile, a production connection string, `Jwt:Key` and `AdminSeed:Email` as host config, CORS origins updated for the real frontend URL, and a decision on where the SPA is served from.
+2. **Add unit tests for `BudgetService`** covering the constraint edge cases (gap 5).
+3. **Mobile polish pass** (gap 3).
+4. **Wire up Google sign-in** when you have a client ID (gap 2).
+5. **Deployment to SmarterASP.NET** — deliberately out of scope so far, never attempted. Needs: publish profile, a production connection string, `Jwt:Key` and `AdminSeed:Email` as host config, CORS origins updated for the real frontend URL, and a decision on where the SPA is served from.
 
 ---
 
