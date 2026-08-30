@@ -101,6 +101,16 @@ All of the following were exercised against **live running services**, not just 
 - Verified against live services (17 checks): authorize redirects and issues no code; the page renders 244 countries; a blank mobile and a forged country code are both rejected; completing it resumes the original authorize request and the resulting token carries `country` and `currency`; an already-complete account is not interrupted
 - Regressions all clean afterwards: profile 21, income 23, month cycle 14, carry-forward 15, unit tests 11
 
+**Changing your password from the Profile screen (added 2026-08-30)**
+- The Profile screen gained a second card: **new password** and **retype password**, nothing else. There was previously no way to change a password at all once registered
+- New `PUT {auth}/api/profile/password` on Auth019. It asks for **no current password** — the bearer token is the proof of identity
+- **A Google-only account is not offered this at all.** `ProfileDto.hasPassword` drives it: the card is hidden when false, and the endpoint refuses with a 400 rather than trusting the client to have hidden it. It replaces a password, never grants one — a Google user's credential lives at Google. Linking Google to an account that already has a password leaves the password intact, so those users keep the card
+- Internally a `GeneratePasswordResetTokenAsync` + `ResetPasswordAsync` pair — the token is minted and spent inside the request, never handed out. Strength stays Identity's to judge, so a rejected password gets the same message registration would have given
+- Impersonation is refused here exactly as on `PUT /api/profile` (rule 6); the guard is now one shared `ImpersonationBlocked()` helper covering both
+- Verified against live services (14 checks): a freshly registered email/password account reports `hasPassword: true`; a mismatch, a blank and a too-short password are each rejected with their own message; a valid change returns 204; **the old password then fails to sign in and the new one succeeds**; an account with no password reports `hasPassword: false` and is refused with 400, gaining none; an impersonated session is refused with 403 and the password is untouched afterwards
+- Changing the password moves the Identity security stamp, so the Auth019 **cookie** session dies within the 30-minute validation interval. The SPA keeps working — it renews on the refresh token, which OpenIddict does not stamp-check — but a fresh `authorize` asks for the new password. That is the wanted behaviour; don't "fix" it
+- The Google-only case is exercised by nulling `PasswordHash` on a freshly registered account — the same state an external sign-up lands in — because Google credentials have never been configured locally. The UI branch (card hidden) follows from the same `hasPassword` flag the endpoint checks
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one

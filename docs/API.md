@@ -97,13 +97,16 @@ The signed-in user's own record. Lives here because Auth019 owns user data.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `{auth}/api/profile` | `{id, email, displayName, mobileNumber, country, countryName, currencyCode}` |
+| GET | `{auth}/api/profile` | `{id, email, displayName, mobileNumber, country, countryName, currencyCode, hasPassword}` |
 | PUT | `{auth}/api/profile` | `{displayName, mobileNumber, country}` — **email is not editable**; 400 on an unknown country |
+| PUT | `{auth}/api/profile/password` | `{newPassword, confirmPassword}` → 204; 400 on a mismatch, a password Identity rejects, or an account with no password |
 | GET | `{auth}/api/profile/countries` | The 244 country options, each with the currency it implies |
 
-Any valid token may **read** a profile. An **impersonated** token (one carrying `imp_by`) is refused on `PUT` with 403 — impersonation is read-only everywhere, and editing someone's profile while wearing their identity would be the loudest possible breach of that.
+Any valid token may **read** a profile. An **impersonated** token (one carrying `imp_by`) is refused on both `PUT` routes with 403 — impersonation is read-only everywhere, and editing someone's profile while wearing their identity would be the loudest possible breach of that.
 
 Changing the country changes the currency, but the currency travels on the access token, so the app must obtain a fresh token (a silent renew) before the new currency shows up.
+
+The password route asks for **no current password**: the bearer token is the proof of identity. It **only ever replaces** a password, never grants one — an account with `hasPassword: false` (Google-only) is refused, and the profile screen hides the card for it entirely. Their credential lives at Google; this is not a route to acquiring a local one. Linking Google to an account that already has a password leaves the password intact, so those users keep the route. Strength is Identity's to judge, so the message on a rejected password matches what registration would have said.
 
 ### Admin API
 
