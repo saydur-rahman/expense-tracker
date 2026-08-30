@@ -148,9 +148,11 @@ rhythms. Settings are append-only and effective-dated, so switching never rewrit
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/budget-periods/current` | Period containing today. Carries `kind` (`Month`/`Week`) alongside `startDate`, `endDate`, `label` |
+| — | — | ⚠️ `current`, `relative` and `{id}` **create** the period row and run carry-forward. `recent` never writes. |
 | GET | `/api/budget-periods/relative/{offset}` | `-1` previous, `1` next |
 | GET | `/api/budget-periods/{id}` | One period |
-| GET | `/api/budget-periods` | All, newest first |
+| GET | `/api/budget-periods` | Stored period rows, newest first |
+| GET | `/api/budget-periods/recent?max=60` | **Computed** cycle windows for the picker: `{offset, kind, startDate, endDate, label}`, newest first |
 
 Returns `{id, startDate, endDate, label}` — e.g. `"25 Jul – 24 Aug 2026"`.
 
@@ -172,7 +174,7 @@ Categories carry a `kind` of `Expense` or `Income` (serialised as a string). The
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/{periodId}/budgets` | Per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
+| GET | `/api/budget-periods/{periodId}/budgets` | `totalIncome` and `totalBudgeted` for the period, then per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
 | PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` — sets the **target**; never caps the heads |
 | DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears the target only; **head budgets are left alone** |
 | PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; no category budget needed first, and nothing caps it |
@@ -187,6 +189,12 @@ target, negative that much **short** of it, and null when there is nothing to co
 
 **Rejections to expect (400):** a negative amount. Nothing else — heads over or under the
 target are reported through `difference`, never refused.
+
+`totalIncome` is income dated inside the period, archived heads included, so the budgeting
+screen can show what there is to divide up without a second call to the reports endpoint.
+`totalBudgeted` sums each category's `amount`, so it follows the same heads-first rule.
+Budgeting past your income is **not** refused — `totalIncome - totalBudgeted` simply goes
+negative and the screen says so.
 
 ### Expenses
 

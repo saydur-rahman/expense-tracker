@@ -1,16 +1,20 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { categoriesApi } from '../../api/categories'
 import { incomesApi } from '../../api/incomes'
 import { ApiError } from '../../api/client'
 import { useMoney } from '../../lib/money'
 import { amountValue } from '../../lib/calc'
+import PeriodPicker from '../../components/PeriodPicker'
+import { budgetPeriodsApi } from '../../api/settings'
 import AmountField from '../../components/AmountField'
 import SearchableSelect, { type SelectOption } from '../../components/SearchableSelect'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
+
+const PAGE_SIZE = 25
 
 export default function IncomesPage() {
   const queryClient = useQueryClient()
@@ -21,15 +25,47 @@ export default function IncomesPage() {
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [filterHeadId, setFilterHeadId] = useState('')
+  const [offset, setOffset] = useState(0)
+
+  // The list follows the chosen cycle, so what is on screen always matches the period
+  // the dashboard and budgets are showing.
+  const { data: period } = useQuery({
+    queryKey: ['budget-period', offset],
+    queryFn: () => budgetPeriodsApi.relative(offset),
+  })
 
   const { data: categories } = useQuery({
     queryKey: ['categories', 'Income'],
     queryFn: () => categoriesApi.list('Income'),
   })
-  const { data: incomes, isLoading } = useQuery({
-    queryKey: ['incomes', filterHeadId],
-    queryFn: () => incomesApi.list(filterHeadId ? { headId: filterHeadId } : {}),
+  // Paged rather than one big request: the API caps a page at 100, so asking for
+  // "everything so far" would quietly stop loading once a period passed that.
+  const {
+    data: incomesPages,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['incomes', period?.id, filterHeadId],
+    enabled: !!period,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      incomesApi.list({
+        from: period!.startDate,
+        to: period!.endDate,
+        page: pageParam,
+        pageSize: PAGE_SIZE,
+        ...(filterHeadId ? { headId: filterHeadId } : {}),
+      }),
+    getNextPageParam: (last) =>
+      last.page * last.pageSize < last.totalCount ? last.page + 1 : undefined,
   })
+
+  const items = incomesPages?.pages.flatMap((p) => p.items) ?? []
+  // Totals describe the whole period, not the rows loaded so far, so they come off any page.
+  const totalCount = incomesPages?.pages[0]?.totalCount ?? 0
+  const totalAmount = incomesPages?.pages[0]?.totalAmount ?? 0
 
   const createIncome = useMutation({
     mutationFn: () =>
@@ -125,6 +161,8 @@ export default function IncomesPage() {
         </form>
       )}
 
+      <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
+
       <div className="flex items-center justify-between gap-2">
         <SearchableSelect
           value={filterHeadId}
@@ -134,17 +172,23 @@ export default function IncomesPage() {
           placeholder="All heads"
           className="max-w-[14rem] flex-1"
         />
-        {incomes && (
+        {!isLoading && (
           <span className="text-sm text-ink-muted">
-            {incomes.totalCount} · {money.format(incomes.totalAmount)}
+            {totalCount} · {money.format(totalAmount)}
           </span>
         )}
       </div>
 
       {isLoading && <p className="text-ink-muted">Loading…</p>}
 
+      {!isLoading && totalCount === 0 && (
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
+          Nothing logged in this period.
+        </p>
+      )}
+
       <ul className="flex flex-col gap-2">
-        {incomes?.items.map((income) => (
+        {items.map((income) => (
           <li
             key={income.id}
             className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card p-3 shadow-sm"
@@ -173,11 +217,17 @@ export default function IncomesPage() {
         ))}
       </ul>
 
-      {incomes?.items.length === 0 && (
-        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
-          No income yet.
-        </p>
+      {hasNextPage && (
+        <button
+          type="button"
+          onClick={() => fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="self-center rounded-lg border border-line bg-card px-4 py-2 text-sm font-medium text-ink-soft shadow-sm transition-colors hover:bg-raised disabled:opacity-50"
+        >
+          {isFetchingNextPage ? 'Loading…' : `Load more · ${items.length} of ${totalCount}`}
+        </button>
       )}
+
     </div>
   )
 }

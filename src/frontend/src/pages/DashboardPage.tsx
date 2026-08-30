@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { reportsApi, type CategorySummary, type PeriodSummary } from '../api/reports'
 import type { CategoryKind } from '../api/categories'
 import LedgerTabs from '../components/LedgerTabs'
+import PeriodPicker from '../components/PeriodPicker'
+import { budgetPeriodsApi } from '../api/settings'
 import { useMoney } from '../lib/money'
 
 // The app's three colours, used here as chart marks. Validated against both card
@@ -16,34 +18,42 @@ const OVER_COLOR = '#dc2626'
 
 export default function DashboardPage() {
   const [ledger, setLedger] = useState<CategoryKind>('Expense')
+  const [offset, setOffset] = useState(0)
 
-  const { data: summary, isLoading } = useQuery({
-    queryKey: ['summary', 'current'],
-    queryFn: reportsApi.currentSummary,
+  // Resolved rather than summarised directly: the summary hangs off a period row, and
+  // stepping to a cycle never opened before is what creates it.
+  const { data: period } = useQuery({
+    queryKey: ['budget-period', offset],
+    queryFn: () => budgetPeriodsApi.relative(offset),
   })
 
-  if (isLoading) return <p className="text-ink-muted">Loading…</p>
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ['summary', period?.id],
+    queryFn: () => reportsApi.summary(period!.id),
+    enabled: !!period,
+  })
 
   const isIncome = ledger === 'Income'
   const breakdown = isIncome ? (summary?.incomeCategories ?? []) : (summary?.categories ?? [])
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Dashboard</h1>
-        <p className="text-sm text-ink-muted">{summary?.periodLabel}</p>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Dashboard</h1>
+
+      <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
 
       {/* The tab picks the whole view — chart and breakdown both follow it. */}
       <LedgerTabs value={ledger} onChange={setLedger} />
 
+      {isLoading && <p className="text-ink-muted">Loading…</p>}
+
       {summary && (isIncome ? <IncomeTotals summary={summary} /> : <MonthTotals summary={summary} />)}
 
-      {breakdown.length === 0 ? (
+      {summary && breakdown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
           {isIncome
-            ? 'No income this month. Add an income category, then log what came in.'
-            : 'Nothing to show yet. Add a category, set a budget, then log an expense.'}
+            ? 'No income in this period. Add an income category, then log what came in.'
+            : 'Nothing to show for this period. Add a category, budget a head, then log an expense.'}
         </p>
       ) : (
         <div className="flex flex-col gap-2">

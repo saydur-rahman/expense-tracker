@@ -110,6 +110,14 @@ export default function HelpPage() {
           it simply becomes the category's budget.
         </p>
         <p>
+          Across the top the screen shows your{' '}
+          <strong className="font-medium text-ink">income for the same period</strong>, what
+          you have budgeted so far, and what is{' '}
+          <strong className="font-medium text-ink">left to budget</strong> — so you are
+          dividing up a real number rather than working from memory. Budget past your income
+          and it turns red and counts down below zero. Nothing stops you; it just says so.
+        </p>
+        <p>
           Tap a category to fold it away. With more than a handful they start folded, so the
           whole period fits on one screen.
         </p>
@@ -147,8 +155,9 @@ export default function HelpPage() {
           This is the same everywhere an amount is asked for, budgets included.
         </p>
         <p>
-          Both screens list what you've logged in the current period and let you filter down
-          to a single head. Income works the same way against your income heads.
+          Both screens show the cycle you have picked at the top, and let you filter down to a
+          single head. A long month loads in batches — <em>Load more</em> at the bottom brings
+          in the rest.
         </p>
       </Step>
 
@@ -174,8 +183,11 @@ export default function HelpPage() {
           that breakdown between the two ledgers.
         </p>
         <p>
-          Use the period picker to look back over earlier periods. Each keeps its own budgets
-          and totals exactly as they were.
+          The picker at the top moves between cycles: the arrows step one at a time, and the
+          label itself is a dropdown that jumps straight to any cycle you have something in.
+          It is the same control on the dashboard, expenses, income and budgets, so all four
+          agree on which period you are looking at. Each keeps its own budgets and totals
+          exactly as they were.
         </p>
       </Step>
 

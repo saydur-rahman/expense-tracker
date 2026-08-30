@@ -32,6 +32,14 @@ public class BudgetPeriodsController : ControllerBase
     public async Task<ActionResult<BudgetPeriodDto>> GetById(Guid id)
         => Ok(ToDto(await _monthCycleService.GetPeriodByIdAsync(_currentUser.Id, id)));
 
+    /// <summary>
+    /// The cycles there is anything to look at, newest first, for the period picker.
+    /// Read-only: unlike `relative/{offset}` this creates nothing.
+    /// </summary>
+    [HttpGet("recent")]
+    public async Task<ActionResult<IEnumerable<PeriodWindowDto>>> Recent([FromQuery] int max = 60)
+        => Ok(await _monthCycleService.ListRecentWindowsAsync(_currentUser.Id, Math.Clamp(max, 1, 240)));
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<BudgetPeriodDto>>> List()
     {

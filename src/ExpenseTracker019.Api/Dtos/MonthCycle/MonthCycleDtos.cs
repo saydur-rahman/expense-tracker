@@ -28,6 +28,22 @@ public class UpdateMonthCycleRequest
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;
 }
 
+/// <summary>
+/// One cycle window, computed rather than read from the table. Carries the offset the
+/// screens already navigate by, so choosing from a list and stepping with the arrows end
+/// up in exactly the same place.
+/// </summary>
+public class PeriodWindowDto
+{
+    /// <summary>0 is the period containing today; -1 the one before it.</summary>
+    public int Offset { get; set; }
+
+    public PeriodKind Kind { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string Label { get; set; } = string.Empty;
+}
+
 public class BudgetPeriodDto
 {
     public Guid Id { get; set; }

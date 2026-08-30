@@ -133,6 +133,65 @@ public class MonthCycleService : IMonthCycleService
         return await ResolvePeriodContainingAsync(userId, start);
     }
 
+    public async Task<IReadOnlyList<PeriodWindowDto>> ListRecentWindowsAsync(Guid userId, int max)
+    {
+        var cycle = await GetCurrentCycleAsync(userId);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (currentStart, currentEnd) = cycle.Containing(today);
+
+        // How far back there is anything to look at. Stored periods count too, so a month
+        // that was budgeted but never spent in still appears.
+        var earliestExpense = await _db.Expenses.Where(e => e.UserId == userId)
+            .MinAsync(e => (DateOnly?)e.ExpenseDate);
+        var earliestIncome = await _db.Incomes.Where(i => i.UserId == userId)
+            .MinAsync(i => (DateOnly?)i.IncomeDate);
+        var earliestPeriod = await _db.BudgetPeriods.Where(p => p.UserId == userId)
+            .MinAsync(p => (DateOnly?)p.StartDate);
+
+        var earliest = new[] { earliestExpense, earliestIncome, earliestPeriod }
+            .Where(d => d is not null)
+            .Select(d => d!.Value)
+            .DefaultIfEmpty(currentStart)
+            .Min();
+
+        var windows = new List<PeriodWindowDto>
+        {
+            new()
+            {
+                Offset = 0,
+                Kind = cycle.Kind,
+                StartDate = currentStart,
+                EndDate = currentEnd,
+                Label = cycle.Label(currentStart, currentEnd),
+            },
+        };
+
+        // Walk back a cycle at a time. Capped so a stray old date cannot ask for thousands
+        // of weeks, and guarded against a shift that fails to move.
+        var start = currentStart;
+        for (var offset = -1; offset > -max && start > earliest; offset--)
+        {
+            var (previousStart, previousEnd) = cycle.Shift(start, -1);
+            if (previousStart >= start)
+            {
+                break;
+            }
+
+            windows.Add(new PeriodWindowDto
+            {
+                Offset = offset,
+                Kind = cycle.Kind,
+                StartDate = previousStart,
+                EndDate = previousEnd,
+                Label = cycle.Label(previousStart, previousEnd),
+            });
+
+            start = previousStart;
+        }
+
+        return windows;
+    }
+
     public async Task<BudgetPeriod> GetPeriodByIdAsync(Guid userId, Guid periodId)
     {
         var period = await _db.BudgetPeriods

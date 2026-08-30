@@ -45,6 +45,19 @@ public class PeriodBudgetsDto
     public string PeriodLabel { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
+
+    /// <summary>
+    /// Income logged in this period. Carried here so the budgeting screen can show what
+    /// there is to divide up without a second round trip to the reports endpoint.
+    /// </summary>
+    public decimal TotalIncome { get; set; }
+
+    /// <summary>
+    /// Every category's budget in force, added together — so it follows the same
+    /// heads-first rule as <see cref="CategoryBudgetDto.Amount"/> rather than re-deriving it.
+    /// </summary>
+    public decimal TotalBudgeted { get; set; }
+
     public List<CategoryBudgetDto> Categories { get; set; } = new();
 }
 
