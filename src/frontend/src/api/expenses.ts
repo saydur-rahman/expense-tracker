@@ -32,6 +32,7 @@ export interface ExpenseFilters {
   categoryId?: string
   headId?: string
   page?: number
+  pageSize?: number
 }
 
 export const expensesApi = {

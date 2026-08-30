@@ -42,6 +42,16 @@ export interface SaveMonthCycle {
   weekStartsOn: WeekDay
 }
 
+/** One cycle window, computed by the API rather than read from the periods table. */
+export interface PeriodWindow {
+  /** 0 is the cycle containing today; -1 the one before it. */
+  offset: number
+  kind: PeriodKind
+  startDate: string
+  endDate: string
+  label: string
+}
+
 export interface BudgetPeriod {
   id: string
   kind: PeriodKind
@@ -60,4 +70,6 @@ export const budgetPeriodsApi = {
   current: () => apiClient.get<BudgetPeriod>('/api/budget-periods/current'),
   relative: (offset: number) => apiClient.get<BudgetPeriod>(`/api/budget-periods/relative/${offset}`),
   list: () => apiClient.get<BudgetPeriod[]>('/api/budget-periods'),
+  /** Cycles there is something to see in, newest first. Creates nothing. */
+  recent: () => apiClient.get<PeriodWindow[]>('/api/budget-periods/recent'),
 }

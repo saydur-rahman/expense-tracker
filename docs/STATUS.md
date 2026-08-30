@@ -169,6 +169,16 @@ All of the following were exercised against **live running services**, not just 
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
 
+**Browsing earlier cycles from every screen (added 2026-08-30)**
+- Two separate faults, not one. The **dashboard** was hardcoded to `reports/summary/current` with no picker at all. **Expenses and income** sent no date filter, so the API returned *all* history — but `pageSize` defaults to 25 and the UI had no pager, so only the newest 25 rows were ever reachable. That was the "can't load all the previous values"
+- `PeriodPicker` now appears on the dashboard, expenses, income and budgets, so all four agree on which cycle is being shown. The arrows step; the label is a dropdown that jumps
+- New **`GET /api/budget-periods/recent`** returns *computed* cycle windows — `{offset, kind, startDate, endDate, label}` — back to the user's earliest expense, income or stored period, capped at 240
+- **Two traps this design exists to avoid.** A dropdown built from the `BudgetPeriods` table would silently skip cycles: rows are created lazily on first visit, so a month holding expenses but never opened has no row. And it would mix kinds — a user who tried Weekly has week rows sitting among the months. Computing from the current cycle fixes both
+- **Listing history must not write.** `relative/{offset}` creates the row and runs carry-forward, so resolving a list of periods would create them wholesale and could carry budgets into months never budgeted. `recent` computes and persists nothing — now a convention in `AGENTS.md`
+- Expenses and income use `useInfiniteQuery` with a **Load more** button. A single cumulative request was tried first and rejected: the API caps a page at 100, so it would have quietly stopped loading once a period passed that — the same class of bug being fixed
+- Verified against live services (20 checks): a fresh account showing one window; history reaching back four months with contiguous offsets and no gaps; **listing creating no rows**; more windows listed than rows stored; an old expense reachable through its own cycle and absent from the current one; 30 rows paging cleanly as 25 + 5 with no duplicates; and switching to weekly relisting as weeks with no months mixed in
+- The help page's claim that these screens showed "the current period" was wrong before this — they showed everything, first page only. Corrected
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one
