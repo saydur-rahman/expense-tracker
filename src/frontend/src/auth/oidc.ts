@@ -23,6 +23,33 @@ export const userManager = new UserManager({
   userStore: new WebStorageStateStore({ store: window.sessionStorage }),
 })
 
+/**
+ * Sign-in happens on Auth019 and comes back to `/callback`, so the route the user was
+ * actually trying to reach has to survive the round trip. It rides in the OIDC `state`
+ * parameter and is read back by the callback page.
+ */
+export function currentReturnPath(): string {
+  return window.location.pathname + window.location.search + window.location.hash
+}
+
+/** Landing on one of these after sign-in would bounce or loop, so they never win. */
+const AUTH_ROUTES = ['/callback', '/silent-renew', '/signed-out']
+
+/**
+ * The path to land on, given whatever came back in `state`. Validated rather than
+ * trusted: it round-trips through a URL and browser storage, and both `//host` and
+ * `/\host` are browser-legal ways of leaving the site entirely.
+ */
+export function safeReturnPath(state: unknown): string {
+  // One leading slash and no second separator after it.
+  if (typeof state !== 'string' || !/^\/(?![/\\])/.test(state)) {
+    return '/'
+  }
+
+  const path = state.split(/[?#]/)[0]
+  return AUTH_ROUTES.includes(path) ? '/' : state
+}
+
 /** Key under which an impersonating admin's own session is parked. */
 const ADMIN_USER_KEY = 'admin.session'
 

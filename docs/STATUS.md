@@ -119,6 +119,12 @@ All of the following were exercised against **live running services**, not just 
 - **Read in a real browser** (first UI screen in this project to be): the page renders end to end at desktop width, the header **?** highlights as the active route, every internal link resolves, and the admin block correctly does **not** appear for a non-admin
 - Not yet seen: the **narrow/mobile** rendering (the extension's window resize reported success but never took effect — the page has no responsive branching of its own, so the risk is low) and the **admin block** rendered for an admin, which needs an admin sign-in
 
+**Deep links survive sign-in (fixed 2026-08-30)**
+- `CallbackPage` always navigated to `/`, and nothing stashed the route being attempted — so **every** deep link (`/help`, `/expenses`, `/settings/profile`, a bookmark, a link from an email) dumped the user on the dashboard after signing in. Found by navigating straight to `/help` in a fresh tab
+- The attempted path now rides in the OIDC **`state`** parameter: `login()` sends `currentReturnPath()`, and the callback navigates to `safeReturnPath(user.state)`
+- **`state` is validated, not trusted** — it round-trips through a URL and browser storage. Only a single-slash local path is accepted: `//host` and `/\host` are both browser-legal ways of leaving the site, and the auth routes themselves (`/callback`, `/silent-renew`, `/signed-out`) are excluded because landing back on one of them loops
+- Verified in a browser: a fresh tab (empty `sessionStorage`, so a real sign-in round trip on the existing Auth019 cookie) opened at `/settings/profile` and at `/help` lands on **that** screen, not the dashboard
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one
