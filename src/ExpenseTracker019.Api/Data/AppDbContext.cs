@@ -32,6 +32,13 @@ public class AppDbContext : DbContext
         builder.Entity<UserMonthCycleSetting>(e =>
         {
             e.HasIndex(x => new { x.UserId, x.EffectiveFromUtc });
+
+            // The column defaults exist to backfill rows written before these columns did;
+            // ValueGeneratedNever stops EF treating them as store-generated. Without it EF
+            // sends DEFAULT for any value that equals the CLR default, so a user choosing
+            // Sunday (DayOfWeek 0) would silently be given the column default of Monday.
+            e.Property(x => x.PeriodKind).HasDefaultValue(PeriodKind.Month).ValueGeneratedNever();
+            e.Property(x => x.WeekStartsOn).HasDefaultValue(DayOfWeek.Monday).ValueGeneratedNever();
         });
 
         builder.Entity<Category>(e =>
@@ -61,7 +68,12 @@ public class AppDbContext : DbContext
 
         builder.Entity<BudgetPeriod>(e =>
         {
-            e.HasIndex(x => new { x.UserId, x.StartDate }).IsUnique();
+            // Kind is part of the key: a user who switches cadence can legitimately have a
+            // week and a month starting on the same day, and they must stay separate rows.
+            e.HasIndex(x => new { x.UserId, x.Kind, x.StartDate }).IsUnique();
+            // Same reasoning as UserMonthCycleSetting above: the default backfills old rows,
+            // ValueGeneratedNever keeps EF writing the value we actually chose.
+            e.Property(x => x.Kind).HasDefaultValue(PeriodKind.Month).ValueGeneratedNever();
             e.Property(x => x.BudgetsInitialized).HasDefaultValue(false);
         });
 

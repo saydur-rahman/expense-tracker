@@ -125,6 +125,17 @@ All of the following were exercised against **live running services**, not just 
 - **`state` is validated, not trusted** — it round-trips through a URL and browser storage. Only a single-slash local path is accepted: `//host` and `/\host` are both browser-legal ways of leaving the site, and the auth routes themselves (`/callback`, `/silent-renew`, `/signed-out`) are excluded because landing back on one of them loops
 - Verified in a browser: a fresh tab (empty `sessionStorage`, so a real sign-in round trip on the existing Auth019 cookie) opened at `/settings/profile` and at `/help` lands on **that** screen, not the dashboard
 
+**Weekly budgets (added 2026-08-30)**
+- A user now picks their **rhythm** in Settings → Budget cycle: **monthly** from a day of the month, or **weekly** from a day of the week. One rhythm at a time
+- The storage model already suited this — a `BudgetPeriod` is just a start and an end date, and reports filter expenses by **date range**, not period id. So `BudgetService`, `ExpenseService`, `IncomeService`, `ReportService`, the dashboard and the budget constraint were **not touched at all**
+- `PeriodKind` lands on both the setting row and `BudgetPeriod`. **It is part of a period's identity**: the unique index is now `(UserId, Kind, StartDate)` and every lookup filters on it, because a week and a month can start on the same day and the realign branch would otherwise rewrite one into the other. Carry-forward filters on it too, so a month's figure never lands in a week
+- Switching rhythm leaves everything already budgeted untouched, and the first period on the new rhythm starts **unbudgeted** — a monthly figure sliced into weeks would be an amount the user never chose
+- `MonthCycleMath` gained `ResolveWeekContaining`, `ShiftWeek` and `BuildWeekLabel`. The separate week label matters: `BuildLabel` shortens anything starting on the 1st to "Sep 2026", which for a week names a span five times too long
+- **Bug caught only by running it: `HasDefaultValue` on an enum column silently discards the CLR default value.** EF treats such a property as store-generated and sends `DEFAULT`, so a user choosing `DayOfWeek.Sunday` (0) was written as the column default, Monday. Fixed with `ValueGeneratedNever()` on all three new enum columns — the column default still backfills old rows. A build and the unit tests were both green while this was broken
+- Unit tests 11 → **27** (week resolution for all seven start days, month/year wrap, shifting, and every label form)
+- Verified against live services (20 checks) with the cycle deliberately set so **the month and the week start on the same day**: both resolve as separate rows with their own labels, the first week is unbudgeted, the next week inherits the weekly figure and not the monthly one, and switching back finds the same month row with its end date and its budgets intact
+- Seen in a browser: the Monthly/Weekly toggle, the day grid, the day-of-week list, and the warning shown only when the rhythm is actually being changed
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one

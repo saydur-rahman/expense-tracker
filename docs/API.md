@@ -133,14 +133,21 @@ All data is scoped to the token's `sub`; another user's ids return 404, never th
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/settings/month-cycle` | `{startDay, isConfigured}` |
-| PUT | `/api/settings/month-cycle` | `{startDay}` (1–31) |
+| GET | `/api/settings/month-cycle` | `{periodKind, startDay, weekStartsOn, isConfigured}` |
+| PUT | `/api/settings/month-cycle` | `{periodKind, startDay, weekStartsOn}` — `periodKind` is `Month` or `Week` |
+
+`periodKind` picks the rhythm; only the field governing it is validated (`startDay` 1–31 for
+`Month`, `weekStartsOn` a `DayOfWeek` name for `Week`). **Send both regardless** — the unused
+one is stored as-is, so switching to weekly and back keeps the day of the month already chosen.
+
+The route is still `month-cycle` for compatibility with existing links; it now governs both
+rhythms. Settings are append-only and effective-dated, so switching never rewrites history.
 
 ### Budget periods
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/current` | Period containing today |
+| GET | `/api/budget-periods/current` | Period containing today. Carries `kind` (`Month`/`Week`) alongside `startDate`, `endDate`, `label` |
 | GET | `/api/budget-periods/relative/{offset}` | `-1` previous, `1` next |
 | GET | `/api/budget-periods/{id}` | One period |
 | GET | `/api/budget-periods` | All, newest first |

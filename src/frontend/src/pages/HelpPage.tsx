@@ -31,6 +31,10 @@ export default function HelpPage() {
           so you can also see what you managed to save.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          If you budget week to week rather than month to month, say so in step 1 and every
+          screen below reads the same way — just over a week.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
           It is built for a phone. Everything works one-handed, and the tabs along the
           bottom are the whole app.
         </p>
@@ -38,18 +42,30 @@ export default function HelpPage() {
 
       <Step
         n={1}
-        title="Set the day your month starts"
-        where={<Link className="underline hover:text-ink" to="/settings/month-cycle">Settings → Month cycle</Link>}
+        title="Choose your budget cycle"
+        where={<Link className="underline hover:text-ink" to="/settings/month-cycle">Settings → Budget cycle</Link>}
       >
         <p>
-          Most budgeting doesn't run 1st to 31st — it runs payday to payday. Pick the day
-          yours begins. Choose <strong className="font-medium text-ink">1</strong> for a
-          normal calendar month, or your salary date (say 25) to track salary-to-salary.
+          First pick the rhythm you budget in —{' '}
+          <strong className="font-medium text-ink">monthly</strong> or{' '}
+          <strong className="font-medium text-ink">weekly</strong>. Every total, budget and
+          report is cut to whichever you choose.
         </p>
         <p>
-          Every total, budget and report is then cut to that cycle. Change it later and the
-          current month is re-cut immediately — you don't have to wait for the next one. In
-          a short month a start day past the 28th falls back to the last day available.
+          <strong className="font-medium text-ink">Monthly</strong> doesn't have to run 1st to
+          31st — most budgeting runs payday to payday. Pick the day yours begins: 1 for a
+          normal calendar month, or your salary date (say 25) to track salary-to-salary. In a
+          short month a start day past the 28th falls back to the last day available.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">Weekly</strong> asks which day your week
+          begins instead, and gives you a fresh seven-day budget every one of those days.
+        </p>
+        <p>
+          Change your mind later and the current period is re-cut immediately — you don't have
+          to wait for the next one. Switching between monthly and weekly leaves everything you
+          have already budgeted untouched, and your first period on the new rhythm starts empty:
+          a monthly figure sliced into weeks would be an amount you never chose.
         </p>
       </Step>
 
@@ -96,7 +112,7 @@ export default function HelpPage() {
           new month inherits the previous month's figures, so a budget you set in July still
           applies in August. Edit a month and only that month changes — the ones after it
           inherit the edit, the ones before are left alone. A month you deliberately empty
-          stays empty.
+          stays empty. Weeks behave identically: each new week inherits the last one's figures.
         </p>
         <p className="text-ink-muted">Income takes no budget. That is deliberate, not missing.</p>
       </Step>
@@ -117,8 +133,8 @@ export default function HelpPage() {
           note is optional — the amount and the head are what matter.
         </p>
         <p>
-          Both screens list what you've logged this month and let you filter down to a
-          single head. Income works the same way against your income heads.
+          Both screens list what you've logged in the current period and let you filter down
+          to a single head. Income works the same way against your income heads.
         </p>
       </Step>
 
@@ -128,7 +144,8 @@ export default function HelpPage() {
         where={<Link className="underline hover:text-ink" to="/">Dashboard</Link>}
       >
         <p>
-          The bar at the top is your whole month: spent against budgeted. The donut beside
+          The bar at the top is your whole month — or week, if that's your rhythm: spent
+          against budgeted. The donut beside
           it splits the same figure into{' '}
           <span className="font-medium text-positive-700 dark:text-positive-400">Left</span>{' '}
           and Spent. Go over and both turn{' '}
@@ -143,8 +160,8 @@ export default function HelpPage() {
           that breakdown between the two ledgers.
         </p>
         <p>
-          Use the period picker to look back at earlier months. Past months keep their own
-          budgets and totals exactly as they were.
+          Use the period picker to look back over earlier periods. Each keeps its own budgets
+          and totals exactly as they were.
         </p>
       </Step>
 

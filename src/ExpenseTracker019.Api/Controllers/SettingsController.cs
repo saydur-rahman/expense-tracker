@@ -25,5 +25,6 @@ public class SettingsController : ControllerBase
 
     [HttpPut("month-cycle")]
     public async Task<ActionResult<MonthCycleDto>> UpdateMonthCycle(UpdateMonthCycleRequest request)
-        => Ok(await _monthCycleService.UpdateAsync(_currentUser.Id, request.StartDay));
+        => Ok(await _monthCycleService.UpdateAsync(
+            _currentUser.Id, request.PeriodKind, request.StartDay, request.WeekStartsOn));
 }
