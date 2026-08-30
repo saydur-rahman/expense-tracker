@@ -161,6 +161,14 @@ All of the following were exercised against **live running services**, not just 
 - Verified with **34 checks** against the evaluator, run through Node's type stripping rather than adding a frontend test runner: precedence, brackets, associativity, rounding, and rejection of letters, unbalanced brackets, double operators, division by zero, and `alert(1)` / `this.x` / `process`
 - **Not yet seen in a browser** — the dev sign-in session had ended and signing back in needs the user's own password
 
+**Income shown while budgeting (added 2026-08-30)**
+- The Budgets screen leads with **income for that same period**, what is budgeted so far, and what is **left to budget**, so the decisions below it are made against a real figure
+- Over-budgeting is shown, not prevented: the figure goes negative and turns red, with a line saying by how much. Refusing it would not make it less true, and people do genuinely plan past their income
+- Scoped by the period, so it follows the cycle automatically — a weekly account sees that week's income, a monthly one that month's. The wording switches between "this week" and "this month" off `BudgetPeriod.Kind`
+- `PeriodBudgetsDto` gained `totalIncome` and `totalBudgeted` rather than the screen making a second call to the reports endpoint. `totalBudgeted` sums each category's `amount`, so it follows the heads-first rule instead of re-deriving it
+- Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
+- Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one

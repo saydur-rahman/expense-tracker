@@ -24,6 +24,10 @@ export interface PeriodBudgets {
   periodLabel: string
   startDate: string
   endDate: string
+  /** Income logged in this period — what there is to divide up. */
+  totalIncome: number
+  /** Every category's budget in force, added together. */
+  totalBudgeted: number
   categories: CategoryBudget[]
 }
 
