@@ -1,0 +1,178 @@
+name: Deploy to Azure
+
+# Merging to main ships. Nothing else does — pull requests only get the checks below.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  # Federated (OIDC) sign-in to Azure, so no client secret is ever stored here.
+  id-token: write
+  contents: read
+
+concurrency:
+  # Two merges in quick succession must not race each other onto the same apps.
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '22.x'
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Restore and test
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Release
+          dotnet test --no-build --configuration Release
+
+      - name: Typecheck and build the SPA
+        working-directory: src/frontend
+        run: |
+          npm ci
+          npx tsc --noEmit -p tsconfig.app.json
+          npm run build
+
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Infrastructure first: the app URLs it returns are baked into the SPA build.
+      - name: Deploy infrastructure
+        id: infra
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: infra/main.bicep
+          parameters: >-
+            namePrefix=${{ vars.AZURE_NAME_PREFIX }}
+            sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
+            adminSeedEmail=${{ secrets.ADMIN_SEED_EMAIL }}
+            adminSeedPassword=${{ secrets.ADMIN_SEED_PASSWORD }}
+            openIddictCertificateBase64=${{ secrets.OPENIDDICT_CERT_BASE64 }}
+            openIddictCertificatePassword=${{ secrets.OPENIDDICT_CERT_PASSWORD }}
+          failOnStdErr: false
+
+      - name: Publish Auth019
+        run: dotnet publish src/Auth019/Auth019.csproj -c Release -o ./publish/auth
+
+      - name: Publish the expense API
+        run: dotnet publish src/ExpenseTracker019.Api/ExpenseTracker019.Api.csproj -c Release -o ./publish/api
+
+      # Auth019 goes up first: the API validates tokens against its discovery
+      # document, so it should not start serving before that document exists.
+      - name: Deploy Auth019
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.infra.outputs.authAppName }}
+          package: ./publish/auth
+
+      - name: Deploy the expense API
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.infra.outputs.apiAppName }}
+          package: ./publish/api
+
+      # The SPA reads its service URLs at build time, so it is built here rather
+      # than in the test job, once the real hostnames are known.
+      - name: Build the SPA against the deployed services
+        working-directory: src/frontend
+        env:
+          VITE_AUTH_BASE_URL: ${{ steps.infra.outputs.authUrl }}
+          VITE_API_BASE_URL: ${{ steps.infra.outputs.apiUrl }}
+        run: |
+          npm ci
+          npm run build
+
+      # Fetched at run time rather than stored, so there is one less secret to rotate.
+      - name: Read the Static Web Apps deployment token
+        id: swa
+        run: |
+          TOKEN=$(az staticwebapp secrets list \
+            --name "${{ steps.infra.outputs.staticSiteName }}" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the SPA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
+          action: upload
+          app_location: src/frontend/dist
+          skip_app_build: true
+
+      - name: Smoke-test the deployment
+        run: |
+          set -e
+          AUTH="${{ steps.infra.outputs.authUrl }}"
+          API="${{ steps.infra.outputs.apiUrl }}"
+
+          # F1 has no Always On, so the first request wakes the app — allow for it.
+          echo "Waiting for Auth019 discovery document…"
+          for i in $(seq 1 30); do
+            if curl -fsS "$AUTH/.well-known/openid-configuration" > /dev/null; then break; fi
+            sleep 10
+          done
+          curl -fsS "$AUTH/.well-known/openid-configuration" | head -c 200; echo
+
+          echo "Expense API must reject an anonymous call…"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$API/api/categories")
+          if [ "$STATUS" != "401" ]; then
+            echo "Expected 401 from the API, got $STATUS"
+            exit 1
+          fi
+          echo "Deployment looks healthy."
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed"
+            echo ""
+            echo "| Piece | URL |"
+            echo "|---|---|"
+            echo "| App | ${{ steps.infra.outputs.spaUrl }} |"
+            echo "| Auth019 | ${{ steps.infra.outputs.authUrl }} |"
+            echo "| API | ${{ steps.infra.outputs.apiUrl }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

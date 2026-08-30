@@ -12,7 +12,9 @@ export const userManager = new UserManager({
   client_id: 'expensetracker019-spa',
   redirect_uri: `${window.location.origin}/callback`,
   silent_redirect_uri: `${window.location.origin}/silent-renew`,
-  post_logout_redirect_uri: `${window.location.origin}/`,
+  // Must be a PUBLIC route. Landing on a protected one immediately kicks off a
+  // fresh sign-in, which Google answers silently — making logout look broken.
+  post_logout_redirect_uri: `${window.location.origin}/signed-out`,
   response_type: 'code',
   scope: 'openid profile email roles offline_access expense.read expense.write auth.admin',
   automaticSilentRenew: true,

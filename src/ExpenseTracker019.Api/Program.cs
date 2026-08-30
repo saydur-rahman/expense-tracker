@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using OpenIddict.Validation.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,6 +57,7 @@ builder.Services.AddScoped<IMonthCycleService, MonthCycleService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IBudgetService, BudgetService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<IIncomeService, IncomeService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
 builder.Services.AddCors(options =>
@@ -71,6 +73,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<RequireWriteScopeFilter>();
+})
+// CategoryKind travels as "Expense"/"Income" rather than 0/1, so the API stays
+// readable and the SPA can compare against a string union.
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

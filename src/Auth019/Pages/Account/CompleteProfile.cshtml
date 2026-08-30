@@ -1,0 +1,48 @@
+@page
+@model Auth019.Pages.Account.CompleteProfileModel
+@{
+    ViewData["Title"] = "Finish setting up";
+}
+
+<h1>One more step</h1>
+
+<p class="muted" style="margin-bottom:1.25rem">
+    Signed in as @Model.Email. We just need a couple of details your provider doesn't share.
+</p>
+
+<form method="post">
+    <input type="hidden" asp-for="ReturnUrl" />
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <p class="error">@Model.ErrorMessage</p>
+    }
+
+    <div class="field">
+        <label asp-for="Input.DisplayName">Name</label>
+        <input asp-for="Input.DisplayName" type="text" autocomplete="name" required />
+        <span asp-validation-for="Input.DisplayName" class="field-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.MobileNumber">Mobile number</label>
+        <input asp-for="Input.MobileNumber" type="tel" autocomplete="tel" inputmode="tel"
+               placeholder="+880 1XXX XXXXXX" required />
+        <span asp-validation-for="Input.MobileNumber" class="field-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Country">Country</label>
+        <select asp-for="Input.Country" autocomplete="country" required>
+            <option value="">Select your country</option>
+            @foreach (var country in Model.CountryOptions)
+            {
+                <option value="@country.Code">@country.Name (@country.CurrencyCode)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.Country" class="field-error"></span>
+        <span class="hint">Sets the currency your amounts are shown in.</span>
+    </div>
+
+    <button type="submit" class="primary">Continue</button>
+</form>

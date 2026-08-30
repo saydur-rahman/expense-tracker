@@ -24,15 +24,15 @@ export default function MonthCycleSettingsPage() {
   })
 
   if (isLoading) {
-    return <p className="p-6 text-gray-500">Loading…</p>
+    return <p className="p-6 text-ink-muted">Loading…</p>
   }
 
   const selected = startDay ?? data?.startDay ?? 1
 
   return (
     <div className="mx-auto max-w-md px-4 py-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Your month cycle</h1>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+      <h1 className="text-xl font-semibold tracking-tight text-ink">Your month cycle</h1>
+      <p className="mt-2 text-sm text-ink-muted">
         Pick the day your budgeting month starts. Choose 1 for a normal calendar month, or your
         payday (e.g. 25) to track salary-to-salary.
       </p>
@@ -41,12 +41,11 @@ export default function MonthCycleSettingsPage() {
         {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
           <button
             key={day}
-            type="button"
-            onClick={() => setStartDay(day)}
+            type="button" onClick={() => setStartDay(day)}
             className={`aspect-square rounded-lg border text-sm transition ${
-              selected === day
-                ? 'border-indigo-600 bg-indigo-600 text-white'
-                : 'border-gray-300 text-gray-700 hover:border-indigo-400 dark:border-gray-700 dark:text-gray-300'
+ selected === day
+                ? 'border-brand-600 bg-brand-600 text-white'
+                : 'border-line text-ink-soft hover:border-brand-400'
             }`}
           >
             {day}
@@ -54,7 +53,7 @@ export default function MonthCycleSettingsPage() {
         ))}
       </div>
 
-      <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+      <p className="mt-4 text-sm text-ink-muted">
         {selected === 1
           ? 'Your month runs from the 1st to the last day of each calendar month.'
           : `Your month runs from the ${ordinal(selected)} to the ${ordinal(selected - 1 || 31)} of the next month.`}

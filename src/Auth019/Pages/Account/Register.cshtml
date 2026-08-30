@@ -17,16 +17,45 @@
     <div class="field">
         <label asp-for="Input.DisplayName">Name</label>
         <input asp-for="Input.DisplayName" type="text" autocomplete="name" required />
+        <span asp-validation-for="Input.DisplayName" class="field-error"></span>
     </div>
 
     <div class="field">
         <label asp-for="Input.Email">Email</label>
         <input asp-for="Input.Email" type="email" autocomplete="username" required />
+        <span asp-validation-for="Input.Email" class="field-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.MobileNumber">Mobile number</label>
+        <input asp-for="Input.MobileNumber" type="tel" autocomplete="tel" inputmode="tel"
+               placeholder="+880 1XXX XXXXXX" required />
+        <span asp-validation-for="Input.MobileNumber" class="field-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Country">Country</label>
+        <select asp-for="Input.Country" autocomplete="country" required>
+            <option value="">Select your country</option>
+            @foreach (var country in Model.CountryOptions)
+            {
+                <option value="@country.Code">@country.Name (@country.CurrencyCode)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.Country" class="field-error"></span>
+        <span class="hint">Sets the currency your amounts are shown in.</span>
     </div>
 
     <div class="field">
         <label asp-for="Input.Password">Password</label>
         <input asp-for="Input.Password" type="password" autocomplete="new-password" required minlength="8" />
+        <span asp-validation-for="Input.Password" class="field-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.ConfirmPassword">Retype password</label>
+        <input asp-for="Input.ConfirmPassword" type="password" autocomplete="new-password" required minlength="8" />
+        <span asp-validation-for="Input.ConfirmPassword" class="field-error"></span>
     </div>
 
     <button type="submit" class="primary">Create account</button>

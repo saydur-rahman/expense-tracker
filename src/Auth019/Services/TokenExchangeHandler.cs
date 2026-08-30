@@ -106,6 +106,14 @@ public class TokenExchangeHandler
             .SetClaim(Claims.Name, target.DisplayName)
             .SetClaim(AppClaims.ImpersonatedBy, actor.Id.ToString());
 
+        // The admin is looking at this user's books, so amounts should read in
+        // this user's currency, not the admin's.
+        if (!string.IsNullOrWhiteSpace(target.Country))
+        {
+            identity.SetClaim(AppClaims.Country, target.Country);
+            identity.SetClaim(AppClaims.Currency, Countries.CurrencyFor(target.Country));
+        }
+
         // Read-only, and no roles: this token can never reach a write endpoint or admin API.
         identity.SetScopes(ImmutableArray.Create(AppScopes.ExpenseRead));
         identity.SetResources(await _scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync());

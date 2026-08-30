@@ -18,7 +18,7 @@ export default function RequireMonthCycle() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+        <p className="text-ink-muted">Loading…</p>
       </div>
     )
   }
@@ -27,7 +27,7 @@ export default function RequireMonthCycle() {
   // which read-only impersonation blocks, so redirecting would trap them.
   const isOnboarding = location.pathname === '/settings/month-cycle'
   if (!data?.isConfigured && !isOnboarding && !isImpersonating) {
-    return <Navigate to="/settings/month-cycle" replace />
+    return <Navigate to="/settings/month-cycle"replace />
   }
 
   return <Outlet />

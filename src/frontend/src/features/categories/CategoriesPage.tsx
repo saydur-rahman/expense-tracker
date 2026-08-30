@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { categoriesApi, type Category } from '../../api/categories'
+import { categoriesApi, type Category, type CategoryKind } from '../../api/categories'
 import { ApiError } from '../../api/client'
+import LedgerTabs from '../../components/LedgerTabs'
 
 export default function CategoriesPage() {
   const queryClient = useQueryClient()
   const [newCategory, setNewCategory] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [kind, setKind] = useState<CategoryKind>('Expense')
+  const [search, setSearch] = useState('')
+  const isIncome = kind === 'Income'
 
   const { data: categories, isLoading } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => categoriesApi.list(),
+    queryKey: ['categories', kind],
+    queryFn: () => categoriesApi.list(kind),
   })
 
   const invalidate = () => {
@@ -19,7 +23,7 @@ export default function CategoriesPage() {
   }
 
   const createCategory = useMutation({
-    mutationFn: (name: string) => categoriesApi.create(name),
+    mutationFn: (name: string) => categoriesApi.create(name, kind),
     onSuccess: () => {
       setNewCategory('')
       setError(null)
@@ -28,16 +32,27 @@ export default function CategoriesPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not add category.'),
   })
 
-  if (isLoading) return <p className="text-gray-500">Loading…</p>
+  const query = search.trim().toLowerCase()
+  const visibleCategories =
+    categories?.filter(
+      (c) =>
+        !query ||
+        c.name.toLowerCase().includes(query) ||
+        c.heads.some((h) => h.name.toLowerCase().includes(query)),
+    ) ?? []
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Categories</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Group your spending into categories, each with heads underneath.
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Categories</h1>
+        <p className="text-sm text-ink-muted">
+          {isIncome
+            ? 'Group where your money comes from, each with heads underneath. Income takes no budget.'
+            : 'Group your spending into categories, each with heads underneath.'}
         </p>
       </div>
+
+      <LedgerTabs value={kind} onChange={setKind} />
 
       <form
         onSubmit={(e) => {
@@ -49,31 +64,49 @@ export default function CategoriesPage() {
         <input
           value={newCategory}
           onChange={(e) => setNewCategory(e.target.value)}
-          placeholder="New category"
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          placeholder={isIncome ? 'New income category' : 'New category'}
+          className="flex-1 rounded-lg border border-line bg-card px-3 py-2.5 text-base transition-colors focus:border-brand-500 focus:outline-none"
         />
         <button
-          type="submit"
-          disabled={createCategory.isPending}
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          type="submit" disabled={createCategory.isPending}
+          className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-brand-500 dark:text-brand-950 dark:hover:bg-brand-400"
         >
           Add
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-negative-600 dark:text-negative-400">{error}</p>}
 
       {categories?.length === 0 && (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-400 dark:border-gray-700">
-          No categories yet. Add one above to get started.
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
+          {isIncome
+            ? 'No income categories yet. Add one above — Salary, Freelance, and so on.'
+            : 'No categories yet. Add one above to get started.'}
         </p>
       )}
 
+      {(categories?.length ?? 0) > 4 && (
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search categories and heads…"
+          className="w-full rounded-lg border border-line bg-input px-3 py-2.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-brand-500 focus:outline-none"
+        />
+      )}
+
+      {isLoading && <p className="text-ink-muted">Loading…</p>}
+
       <div className="flex flex-col gap-3">
-        {categories?.map((category) => (
+        {visibleCategories.map((category) => (
           <CategoryCard key={category.id} category={category} onChanged={invalidate} />
         ))}
       </div>
+
+      {(categories?.length ?? 0) > 0 && visibleCategories.length === 0 && (
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
+          Nothing matches “{search}”.
+        </p>
+      )}
     </div>
   )
 }
@@ -95,7 +128,7 @@ function CategoryCard({ category, onChanged }: { category: Category; onChanged: 
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+    <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         {renaming ? (
           <input
@@ -108,20 +141,19 @@ function CategoryCard({ category, onChanged }: { category: Category; onChanged: 
               setRenaming(false)
             })}
             autoFocus
-            className="flex-1 rounded border border-gray-300 px-2 py-1 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="flex-1 rounded-lg border border-line bg-card px-2.5 py-1.5 transition-colors focus:border-brand-500 focus:outline-none"
           />
         ) : (
           <button
             onClick={() => setRenaming(true)}
-            className="text-left font-medium text-gray-900 dark:text-gray-100"
+            className="text-left font-medium text-ink"
           >
             {category.name}
           </button>
         )}
         <button
           onClick={handle(() => categoriesApi.archive(category.id))}
-          className="shrink-0 text-sm text-gray-400 hover:text-red-600"
-          title="Remove this category (its past data is kept)"
+          className="shrink-0 text-sm font-medium text-ink-muted transition-colors hover:text-negative-600" title="Remove this category (its past data is kept)"
         >
           Remove
         </button>
@@ -133,7 +165,7 @@ function CategoryCard({ category, onChanged }: { category: Category; onChanged: 
             <HeadName head={head} onChanged={onChanged} />
             <button
               onClick={handle(() => categoriesApi.archiveHead(head.id))}
-              className="shrink-0 text-xs text-gray-400 hover:text-red-600"
+              className="shrink-0 text-xs font-medium text-ink-muted transition-colors hover:text-negative-600"
             >
               Remove
             </button>
@@ -155,15 +187,14 @@ function CategoryCard({ category, onChanged }: { category: Category; onChanged: 
         <input
           value={newHead}
           onChange={(e) => setNewHead(e.target.value)}
-          placeholder="Add a head"
-          className="flex-1 rounded border border-gray-300 px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          placeholder="Add a head" className="flex-1 rounded-lg border border-line bg-card px-2.5 py-2 text-sm transition-colors focus:border-brand-500 focus:outline-none"
         />
-        <button type="submit" className="rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:text-gray-300">
+        <button type="submit" className="rounded-lg border border-line bg-card px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-raised">
           Add
         </button>
       </form>
 
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-negative-600 dark:text-negative-400">{error}</p>}
     </div>
   )
 }
@@ -174,7 +205,7 @@ function HeadName({ head, onChanged }: { head: { id: string; name: string }; onC
 
   if (!editing) {
     return (
-      <button onClick={() => setEditing(true)} className="text-left text-sm text-gray-700 dark:text-gray-300">
+      <button onClick={() => setEditing(true)} className="text-left text-sm text-ink-soft">
         {head.name}
       </button>
     )
@@ -192,7 +223,7 @@ function HeadName({ head, onChanged }: { head: { id: string; name: string }; onC
         setEditing(false)
       }}
       autoFocus
-      className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+      className="flex-1 rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm transition-colors focus:border-brand-500 focus:outline-none"
     />
   )
 }

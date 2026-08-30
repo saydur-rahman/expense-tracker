@@ -15,16 +15,16 @@ public class CategoryService : ICategoryService
         _db = db;
     }
 
-    public async Task<IReadOnlyList<CategoryDto>> ListAsync(Guid userId, bool includeArchived)
+    public async Task<IReadOnlyList<CategoryDto>> ListAsync(Guid userId, bool includeArchived, CategoryKind kind)
     {
-        var query = _db.Categories.Include(c => c.Heads).Where(c => c.UserId == userId);
+        var query = _db.Categories.Include(c => c.Heads).Where(c => c.UserId == userId && c.Kind == kind);
 
         if (includeArchived)
         {
             query = _db.Categories
                 .IgnoreQueryFilters()
                 .Include(c => c.Heads)
-                .Where(c => c.UserId == userId);
+                .Where(c => c.UserId == userId && c.Kind == kind);
         }
 
         var categories = await query
@@ -34,13 +34,15 @@ public class CategoryService : ICategoryService
         return categories.Select(c => ToDto(c, includeArchived)).ToList();
     }
 
-    public async Task<CategoryDto> CreateAsync(Guid userId, string name)
+    public async Task<CategoryDto> CreateAsync(Guid userId, string name, CategoryKind kind)
     {
         name = Normalize(name);
-        await EnsureCategoryNameAvailableAsync(userId, name, excludingId: null);
+        await EnsureCategoryNameAvailableAsync(userId, kind, name, excludingId: null);
 
+        // Ordering runs per ledger, so adding an income category doesn't push a
+        // number onto the end of the spending list.
         var maxOrder = await _db.Categories
-            .Where(c => c.UserId == userId)
+            .Where(c => c.UserId == userId && c.Kind == kind)
             .Select(c => (int?)c.DisplayOrder)
             .MaxAsync() ?? 0;
 
@@ -48,6 +50,7 @@ public class CategoryService : ICategoryService
         {
             UserId = userId,
             Name = name,
+            Kind = kind,
             DisplayOrder = maxOrder + 1,
         };
 
@@ -61,7 +64,7 @@ public class CategoryService : ICategoryService
     {
         name = Normalize(name);
         var category = await GetOwnedCategoryAsync(userId, categoryId);
-        await EnsureCategoryNameAvailableAsync(userId, name, excludingId: categoryId);
+        await EnsureCategoryNameAvailableAsync(userId, category.Kind, name, excludingId: categoryId);
 
         category.Name = name;
         await _db.SaveChangesAsync();
@@ -145,10 +148,11 @@ public class CategoryService : ICategoryService
                .FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
            ?? throw new NotFoundAppException("Head not found.");
 
-    private async Task EnsureCategoryNameAvailableAsync(Guid userId, string name, Guid? excludingId)
+    // Names only have to be unique within their own ledger — "Other" can sit in both.
+    private async Task EnsureCategoryNameAvailableAsync(Guid userId, CategoryKind kind, string name, Guid? excludingId)
     {
         var taken = await _db.Categories
-            .AnyAsync(c => c.UserId == userId && c.Name == name && c.Id != excludingId);
+            .AnyAsync(c => c.UserId == userId && c.Kind == kind && c.Name == name && c.Id != excludingId);
         if (taken)
         {
             throw new ConflictAppException($"A category named \"{name}\" already exists.");
@@ -179,6 +183,7 @@ public class CategoryService : ICategoryService
     {
         Id = category.Id,
         Name = category.Name,
+        Kind = category.Kind,
         IsArchived = category.IsArchived,
         Heads = category.Heads
             .Where(h => includeArchived || !h.IsArchived)

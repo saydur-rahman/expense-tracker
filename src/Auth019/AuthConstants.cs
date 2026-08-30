@@ -28,6 +28,15 @@ public static class AppClaims
 {
     /// <summary>User id of the admin who started an impersonation session.</summary>
     public const string ImpersonatedBy = "imp_by";
+
+    /// <summary>The user's ISO 3166-1 alpha-2 country.</summary>
+    public const string Country = "country";
+
+    /// <summary>
+    /// ISO 4217 currency, derived from the country rather than stored — so the app
+    /// can format every amount without a round trip, and changing country changes it.
+    /// </summary>
+    public const string Currency = "currency";
 }
 
 public static class AppClients

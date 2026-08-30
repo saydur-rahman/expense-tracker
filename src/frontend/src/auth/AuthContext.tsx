@@ -17,6 +17,10 @@ export interface CurrentUser {
   displayName: string
   roles: string[]
   scopes: string[]
+  /** ISO 3166-1 alpha-2, or null for accounts that predate the country field. */
+  country: string | null
+  /** ISO 4217, derived by Auth019 from the country. Null when there is no country. */
+  currency: string | null
   isImpersonating: boolean
   impersonatedBy: string | null
 }
@@ -55,6 +59,8 @@ function readUser(accessToken: string): CurrentUser | null {
     // during an impersonated session.
     roles: toArray(claims.role),
     scopes: toArray(claims.scope),
+    country: (claims.country as string) ?? null,
+    currency: (claims.currency as string) ?? null,
     isImpersonating: impersonatedBy !== null,
     impersonatedBy,
   }

@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<CategoryBudget> CategoryBudgets => Set<CategoryBudget>();
     public DbSet<HeadBudget> HeadBudgets => Set<HeadBudget>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<Income> Incomes => Set<Income>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,7 +34,10 @@ public class AppDbContext : DbContext
 
         builder.Entity<Category>(e =>
         {
-            e.HasIndex(x => x.UserId);
+            // Every list is filtered by kind, so the index leads with it rather than
+            // making each query sift the other side of the ledger out.
+            e.HasIndex(x => new { x.UserId, x.Kind });
+            e.Property(x => x.Kind).HasDefaultValue(CategoryKind.Expense);
             // Expenses/budgets referencing an archived Category or Head must still be queryable
             // for history/reports, so those queries must call IgnoreQueryFilters() explicitly
             // instead of relying on eager-loaded navigations, which this filter would silently drop.
@@ -56,6 +60,7 @@ public class AppDbContext : DbContext
         builder.Entity<BudgetPeriod>(e =>
         {
             e.HasIndex(x => new { x.UserId, x.StartDate }).IsUnique();
+            e.Property(x => x.BudgetsInitialized).HasDefaultValue(false);
         });
 
         builder.Entity<CategoryBudget>(e =>
@@ -93,6 +98,17 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.UserId);
             e.HasOne(x => x.Head)
                 .WithMany(h => h.Expenses)
+                .HasForeignKey(x => x.HeadId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Income>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.HeadId, x.IncomeDate });
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.Head)
+                .WithMany(h => h.Incomes)
                 .HasForeignKey(x => x.HeadId)
                 .OnDelete(DeleteBehavior.Restrict);
         });

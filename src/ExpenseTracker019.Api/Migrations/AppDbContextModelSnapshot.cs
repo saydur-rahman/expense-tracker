@@ -28,6 +28,11 @@ namespace ExpenseTracker019.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("BudgetsInitialized")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -70,6 +75,11 @@ namespace ExpenseTracker019.Api.Migrations
                     b.Property<bool>("IsArchived")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -79,7 +89,7 @@ namespace ExpenseTracker019.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "Kind");
 
                     b.ToTable("Categories");
                 });
@@ -217,6 +227,43 @@ namespace ExpenseTracker019.Api.Migrations
                     b.ToTable("HeadBudgets");
                 });
 
+            modelBuilder.Entity("ExpenseTracker019.Api.Models.Income", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("HeadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("IncomeDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("HeadId", "IncomeDate");
+
+                    b.ToTable("Incomes");
+                });
+
             modelBuilder.Entity("ExpenseTracker019.Api.Models.UserMonthCycleSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -302,6 +349,17 @@ namespace ExpenseTracker019.Api.Migrations
                     b.Navigation("Head");
                 });
 
+            modelBuilder.Entity("ExpenseTracker019.Api.Models.Income", b =>
+                {
+                    b.HasOne("ExpenseTracker019.Api.Models.Head", "Head")
+                        .WithMany("Incomes")
+                        .HasForeignKey("HeadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Head");
+                });
+
             modelBuilder.Entity("ExpenseTracker019.Api.Models.BudgetPeriod", b =>
                 {
                     b.Navigation("CategoryBudgets");
@@ -321,6 +379,8 @@ namespace ExpenseTracker019.Api.Migrations
                     b.Navigation("Expenses");
 
                     b.Navigation("HeadBudgets");
+
+                    b.Navigation("Incomes");
                 });
 #pragma warning restore 612, 618
         }

@@ -13,6 +13,12 @@ public class Category
     public string Name { get; set; } = string.Empty;
     public int DisplayOrder { get; set; }
 
+    /// <summary>
+    /// Expense or income. Heads inherit it from their category, so nothing below
+    /// this row needs its own copy.
+    /// </summary>
+    public CategoryKind Kind { get; set; } = CategoryKind.Expense;
+
     public bool IsArchived { get; set; }
     public DateTime? ArchivedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

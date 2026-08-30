@@ -29,7 +29,11 @@ export interface PeriodSummary {
   totalBudget: number
   totalSpent: number
   totalRemaining: number
+  totalIncome: number
+  /** Income minus spending. Negative means you spent more than you earned. */
+  totalSaved: number
   categories: CategorySummary[]
+  incomeCategories: CategorySummary[]
 }
 
 export const reportsApi = {

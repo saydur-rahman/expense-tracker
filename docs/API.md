@@ -36,6 +36,8 @@ Errors come back as RFC 7807 problem details (`{"title": "...", "status": 400}`)
 | `expense.write` | Create/update/delete expense data |
 | `auth.admin` | Auth019's user-administration API |
 
+Access tokens also carry `country` (ISO 3166-1 alpha-2) and `currency` (ISO 4217, derived from the country) when the account has a country set. The SPA formats every amount from the `currency` claim; accounts predating the country field carry neither and fall back to plain grouped numbers.
+
 Plus the standard `openid`, `profile`, `email`, `roles`, `offline_access`.
 
 ### Sign-in flow (Authorization Code + PKCE)
@@ -89,6 +91,20 @@ The returned token has **`scope: expense.read` only**, **no roles**, an `imp_by`
 
 Rejected (`invalid_request` / `invalid_grant`) when the caller isn't an admin, is already impersonating, or the target is themselves, another admin, or deactivated.
 
+### Profile API
+
+The signed-in user's own record. Lives here because Auth019 owns user data.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `{auth}/api/profile` | `{id, email, displayName, mobileNumber, country, countryName, currencyCode}` |
+| PUT | `{auth}/api/profile` | `{displayName, mobileNumber, country}` — **email is not editable**; 400 on an unknown country |
+| GET | `{auth}/api/profile/countries` | The 244 country options, each with the currency it implies |
+
+Any valid token may **read** a profile. An **impersonated** token (one carrying `imp_by`) is refused on `PUT` with 403 — impersonation is read-only everywhere, and editing someone's profile while wearing their identity would be the loudest possible breach of that.
+
+Changing the country changes the currency, but the currency travels on the access token, so the app must obtain a fresh token (a silent renew) before the new currency shows up.
+
 ### Admin API
 
 Requires the `Admin` role **and** the `auth.admin` scope — so an impersonation token cannot reach it.
@@ -132,13 +148,15 @@ Returns `{id, startDate, endDate, label}` — e.g. `"25 Jul – 24 Aug 2026"`.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/categories?includeArchived=false` | Categories with nested heads |
-| POST | `/api/categories` | `{name}`; 409 if the name is taken |
+| GET | `/api/categories?kind=Expense&includeArchived=false` | Categories with nested heads. `kind` is `Expense` (default) or `Income` |
+| POST | `/api/categories` | `{name, kind?}`; 409 if the name is taken **within that kind** |
 | PUT | `/api/categories/{id}` | Rename |
 | DELETE | `/api/categories/{id}` | **Archives** (cascades to heads); data kept |
 | POST | `/api/categories/{categoryId}/heads` | `{name}` |
 | PUT | `/api/heads/{id}` | Rename |
 | DELETE | `/api/heads/{id}` | **Archives**; data kept |
+
+Categories carry a `kind` of `Expense` or `Income` (serialised as a string). The two are separate trees with the same shape; heads inherit their category's kind. A name may be reused across kinds — "Other" can sit in both.
 
 ### Budgets
 
@@ -163,7 +181,20 @@ All four return the full updated period budget, so no follow-up fetch is needed.
 | PUT | `/api/expenses/{id}` | Same body |
 | DELETE | `/api/expenses/{id}` | Hard delete |
 
-Listing returns `{items, totalCount, totalAmount, page, pageSize}` and **includes expenses on archived heads** so history stays complete. Creating against an archived head returns 404.
+Listing returns `{items, totalCount, totalAmount, page, pageSize}` and **includes expenses on archived heads** so history stays complete. Creating against an archived head returns 404, and against a head on an **income** category returns 400.
+
+### Incomes
+
+A mirror of expenses, against heads of `Income` categories. No budgets apply.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/incomes` | `from`, `to`, `categoryId`, `headId`, `page`, `pageSize` (max 100) |
+| POST | `/api/incomes` | `{headId, amount, incomeDate, note?}`; amount > 0 |
+| PUT | `/api/incomes/{id}` | Same body |
+| DELETE | `/api/incomes/{id}` | Hard delete |
+
+Same list shape as expenses. Posting against a head on an **expense** category returns 400.
 
 ### Reports
 
@@ -173,3 +204,7 @@ Listing returns `{items, totalCount, totalAmount, page, pageSize}` and **include
 | GET | `/api/reports/summary/current` | Same for the current period |
 
 Per category and head: `budget`, `spent`, `remaining`, `isOverBudget`, `isArchived`, plus period totals.
+
+The summary carries **both ledgers**: `categories` is the spending breakdown, `incomeCategories` the income one — the dashboard's two tabs. Totals are `totalBudget`, `totalSpent`, `totalRemaining`, `totalIncome`, and `totalSaved` (income minus spending; negative means you spent more than you earned). On an income category the `spent` field carries the amount received and the budget fields stay null, so one component renders either tab.
+
+**Budget rejections (400):** an income category or head can never take a budget.

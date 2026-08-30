@@ -1,4 +1,5 @@
 using ExpenseTracker019.Api.Dtos.Categories;
+using ExpenseTracker019.Api.Models;
 using ExpenseTracker019.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,12 +21,14 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet("categories")]
-    public async Task<ActionResult<IEnumerable<CategoryDto>>> List([FromQuery] bool includeArchived = false)
-        => Ok(await _categoryService.ListAsync(_currentUser.Id, includeArchived));
+    public async Task<ActionResult<IEnumerable<CategoryDto>>> List(
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] CategoryKind kind = CategoryKind.Expense)
+        => Ok(await _categoryService.ListAsync(_currentUser.Id, includeArchived, kind));
 
     [HttpPost("categories")]
     public async Task<ActionResult<CategoryDto>> Create(SaveCategoryRequest request)
-        => Ok(await _categoryService.CreateAsync(_currentUser.Id, request.Name));
+        => Ok(await _categoryService.CreateAsync(_currentUser.Id, request.Name, request.Kind));
 
     [HttpPut("categories/{id:guid}")]
     public async Task<ActionResult<CategoryDto>> Rename(Guid id, SaveCategoryRequest request)

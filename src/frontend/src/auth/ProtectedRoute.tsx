@@ -14,8 +14,8 @@ export default function ProtectedRoute() {
 
   if (isLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-950">
-        <p className="text-gray-500 dark:text-gray-400">Loading…</p>
+      <div className="flex min-h-screen items-center justify-center bg-card">
+        <p className="text-ink-muted">Loading…</p>
       </div>
     )
   }

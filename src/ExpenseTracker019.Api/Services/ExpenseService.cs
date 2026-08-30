@@ -126,11 +126,24 @@ public class ExpenseService : IExpenseService
 
     /// <summary>
     /// New/edited expenses must target a live head — archived heads keep their history
-    /// but can't take new spending.
+    /// but can't take new spending — and it must be a head on the <em>spending</em>
+    /// side, since booking spending against an income head would corrupt every total.
     /// </summary>
     private async Task<Head> GetActiveOwnedHeadAsync(Guid userId, Guid headId)
-        => await _db.Heads.FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
-           ?? throw new NotFoundAppException("Head not found.");
+    {
+        var head = await _db.Heads
+            .Include(h => h.Category)
+            .FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
+            ?? throw new NotFoundAppException("Head not found.");
+
+        if (head.Category.Kind != CategoryKind.Expense)
+        {
+            throw new ValidationAppException(
+                "That head belongs to an income category. Pick one from a spending category.");
+        }
+
+        return head;
+    }
 
     private async Task<ExpenseDto> GetDtoAsync(Guid userId, Guid expenseId)
         => await _db.Expenses

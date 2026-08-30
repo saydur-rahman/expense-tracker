@@ -4,9 +4,11 @@ import { budgetPeriodsApi } from '../../api/settings'
 import { budgetsApi, type CategoryBudget } from '../../api/budgets'
 import { ApiError } from '../../api/client'
 import PeriodPicker from '../../components/PeriodPicker'
+import { useMoney } from '../../lib/money'
 
 export default function BudgetSetupPage() {
   const [offset, setOffset] = useState(0)
+  const [search, setSearch] = useState('')
 
   const { data: period } = useQuery({
     queryKey: ['budget-period', offset],
@@ -19,36 +21,61 @@ export default function BudgetSetupPage() {
     enabled: !!period,
   })
 
+  const query = search.trim().toLowerCase()
+  const visibleCategories =
+    budgets?.categories.filter(
+      (c) =>
+        !query ||
+        c.categoryName.toLowerCase().includes(query) ||
+        c.heads.some((h) => h.headName.toLowerCase().includes(query)),
+    ) ?? []
+
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Budgets</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Budgets</h1>
+        <p className="text-sm text-ink-muted">
           Set a budget per category, then split it across its heads.
         </p>
       </div>
 
       <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
 
-      {isLoading && <p className="text-gray-500">Loading…</p>}
+      {(budgets?.categories.length ?? 0) > 4 && (
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search categories and heads…"
+          className="w-full rounded-lg border border-line bg-input px-3 py-2.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-brand-500 focus:outline-none"
+        />
+      )}
+
+      {isLoading && <p className="text-ink-muted">Loading…</p>}
 
       {budgets?.categories.length === 0 && (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-400 dark:border-gray-700">
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
           Add a category first, then you can budget for it here.
         </p>
       )}
 
       <div className="flex flex-col gap-3">
-        {budgets?.categories.map((category) => (
-          <CategoryBudgetCard key={category.categoryId} periodId={budgets.periodId} category={category} />
+        {visibleCategories.map((category) => (
+          <CategoryBudgetCard key={category.categoryId} periodId={budgets!.periodId} category={category} />
         ))}
       </div>
+
+      {budgets && budgets.categories.length > 0 && visibleCategories.length === 0 && (
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">
+          Nothing matches “{search}”.
+        </p>
+      )}
     </div>
   )
 }
 
 function CategoryBudgetCard({ periodId, category }: { periodId: string; category: CategoryBudget }) {
   const queryClient = useQueryClient()
+  const money = useMoney()
   const [error, setError] = useState<string | null>(null)
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['budgets'] })
@@ -65,13 +92,12 @@ function CategoryBudgetCard({ periodId, category }: { periodId: string; category
   const overAllocated = category.unallocated !== null && category.unallocated < 0
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+    <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-gray-900 dark:text-gray-100">{category.categoryName}</span>
+        <span className="font-medium text-ink">{category.categoryName}</span>
         <AmountInput
           value={category.amount}
-          placeholder="Set budget"
-          onCommit={(amount) =>
+          placeholder="Set budget" onCommit={(amount) =>
             mutation.mutate(() =>
               amount === null
                 ? budgetsApi.clearCategory(periodId, category.categoryId)
@@ -84,28 +110,27 @@ function CategoryBudgetCard({ periodId, category }: { periodId: string; category
       {category.amount !== null && (
         <>
           <div className="mt-3">
-            <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+            <div className="h-2 overflow-hidden rounded-full bg-track">
               <div
-                className={`h-full transition-all ${overAllocated ? 'bg-red-500' : 'bg-indigo-500'}`}
+                className={`h-full transition-all ${overAllocated ? 'bg-negative-500' : 'bg-brand-500'}`}
                 style={{
                   width: `${Math.min(100, category.amount > 0 ? (category.allocatedToHeads / category.amount) * 100 : 0)}%`,
                 }}
               />
             </div>
-            <p className={`mt-1 text-xs ${overAllocated ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
-              {category.allocatedToHeads.toFixed(2)} of {category.amount.toFixed(2)} allocated ·{' '}
-              {(category.unallocated ?? 0).toFixed(2)} left for heads
+            <p className={`mt-1 text-xs ${overAllocated ? 'text-negative-600 dark:text-negative-400' : 'text-ink-muted'}`}>
+              {money.format(category.allocatedToHeads)} of {money.format(category.amount)} allocated ·{' '}
+              {money.format(category.unallocated ?? 0)} left for heads
             </p>
           </div>
 
-          <ul className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+          <ul className="mt-3 flex flex-col gap-2 border-t border-line-soft pt-3">
             {category.heads.map((head) => (
               <li key={head.headId} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-700 dark:text-gray-300">{head.headName}</span>
+                <span className="text-sm text-ink-soft">{head.headName}</span>
                 <AmountInput
                   value={head.amount}
-                  placeholder="—"
-                  onCommit={(amount) =>
+                  placeholder="—" onCommit={(amount) =>
                     mutation.mutate(() =>
                       amount === null
                         ? budgetsApi.clearHead(periodId, head.headId)
@@ -116,13 +141,13 @@ function CategoryBudgetCard({ periodId, category }: { periodId: string; category
               </li>
             ))}
             {category.heads.length === 0 && (
-              <li className="text-xs text-gray-400">No heads in this category yet.</li>
+              <li className="text-xs text-ink-muted">No heads in this category yet.</li>
             )}
           </ul>
         </>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-negative-600 dark:text-negative-400">{error}</p>}
     </div>
   )
 }
@@ -141,8 +166,7 @@ function AmountInput({
 
   return (
     <input
-      inputMode="decimal"
-      value={shown}
+      inputMode="decimal" value={shown}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
@@ -156,7 +180,7 @@ function AmountInput({
         const parsed = Number(trimmed)
         if (!Number.isNaN(parsed) && parsed !== value) onCommit(parsed)
       }}
-      className="w-28 rounded border border-gray-300 px-2 py-1.5 text-right text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+      className="w-28 rounded border border-line px-2 py-1.5 text-right text-sm"
     />
   )
 }

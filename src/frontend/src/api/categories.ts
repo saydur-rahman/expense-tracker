@@ -1,5 +1,8 @@
 import { apiClient } from './client'
 
+/** Which ledger a category belongs to. Income shares the structure but takes no budget. */
+export type CategoryKind = 'Expense' | 'Income'
+
 export interface Head {
   id: string
   categoryId: string
@@ -10,14 +13,16 @@ export interface Head {
 export interface Category {
   id: string
   name: string
+  kind: CategoryKind
   isArchived: boolean
   heads: Head[]
 }
 
 export const categoriesApi = {
-  list: (includeArchived = false) =>
-    apiClient.get<Category[]>(`/api/categories?includeArchived=${includeArchived}`),
-  create: (name: string) => apiClient.post<Category>('/api/categories', { name }),
+  list: (kind: CategoryKind = 'Expense', includeArchived = false) =>
+    apiClient.get<Category[]>(`/api/categories?kind=${kind}&includeArchived=${includeArchived}`),
+  create: (name: string, kind: CategoryKind = 'Expense') =>
+    apiClient.post<Category>('/api/categories', { name, kind }),
   rename: (id: string, name: string) => apiClient.put<Category>(`/api/categories/${id}`, { name }),
   archive: (id: string) => apiClient.delete<void>(`/api/categories/${id}`),
   createHead: (categoryId: string, name: string) =>

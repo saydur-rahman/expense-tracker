@@ -15,6 +15,13 @@ public class BudgetPeriod
     public DateOnly EndDate { get; set; }
     public string Label { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Set once this period's budgets have been settled — either carried forward from the
+    /// previous month or edited by the user. Carry-forward checks this so it fills a new
+    /// month exactly once: a month the user deliberately emptied stays empty.
+    /// </summary>
+    public bool BudgetsInitialized { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<CategoryBudget> CategoryBudgets { get; set; } = new List<CategoryBudget>();

@@ -73,4 +73,9 @@ export const authApiClient = {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     }),
+  put: <T>(path: string, data?: unknown) =>
+    request<T>(import.meta.env.VITE_AUTH_BASE_URL as string, path, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
 }

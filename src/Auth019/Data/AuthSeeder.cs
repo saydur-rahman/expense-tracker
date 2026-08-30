@@ -90,7 +90,9 @@ public static class AuthSeeder
                 new Uri($"{spaOrigin}/callback"),
                 new Uri($"{spaOrigin}/silent-renew"),
             },
-            PostLogoutRedirectUris = { new Uri($"{spaOrigin}/") },
+            // The signed-out landing page is deliberately public: sending someone
+            // back to a protected route just bounces them into a new sign-in.
+            PostLogoutRedirectUris = { new Uri($"{spaOrigin}/signed-out"), new Uri($"{spaOrigin}/") },
             Permissions =
             {
                 Permissions.Endpoints.Authorization,

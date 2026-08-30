@@ -43,6 +43,8 @@ The browser app is a **public client**: it cannot keep a secret. So it holds no 
 
 The SPA **never sees a password**. Sign-in happens on Auth019's own server-rendered pages; the SPA only ever receives tokens. This is also why the login/register pages live in `Auth019/Pages/Account/` rather than in React.
 
+**Currency is derived, never stored.** The user picks a country; `Countries.CurrencyFor` maps it to an ISO 4217 code from the runtime's own globalization data, and Auth019 puts both on the access token as `country` and `currency`. Nothing persists a currency column, so the two can never disagree, and changing country in Settings changes every amount on screen. The cost of that choice is that a country change only takes effect on the **next** token — the profile screen triggers a silent renew so the user doesn't have to sign out. Accounts with no country get no currency claim and the app falls back to plain grouped numbers rather than guessing a symbol.
+
 Tokens are kept in `sessionStorage` (not `localStorage`) so they die with the tab.
 
 ---
@@ -54,6 +56,7 @@ Category                (soft-deletable, renameable)
 └── Head                (soft-deletable, renameable)
     └── Expense         ← every expense hangs off a Head, never a bare Category
 
+Income                  (money in, against an income Head — mirrors Expense, no budget)
 BudgetPeriod            (one user's concrete "month": start + end dates)
 ├── CategoryBudget      (period × category → amount)
 └── HeadBudget          (period × head → amount)
@@ -62,6 +65,10 @@ UserMonthCycleSetting   (append-only history of cycle start days)
 ```
 
 A **Category** is a grouping ("Food"). A **Head** is what you actually spend on ("Groceries"). Budgets exist at both levels; spending only happens at head level.
+
+**Two ledgers, one structure.** A category carries a `Kind` — `Expense` or `Income` — and heads inherit it from their category. Income reuses the whole category/head shape but **never carries a budget**: budgets exist to cap spending, and there is nothing to cap on money coming in. The trees are kept apart so "Salary" and "Groceries" never share a list, and a name may be reused across kinds.
+
+The boundary is enforced in the services, not left to the client: `BudgetService` rejects a budget on an income category or head, `ExpenseService` rejects spending booked against an income head, and `IncomeService` rejects income booked against a spending head. Crossing the two would silently corrupt every total on the dashboard, so none of it is trusted from the request.
 
 ---
 
@@ -94,7 +101,19 @@ Each user picks the day their month starts — 1 for calendar months, 25 for sal
 
 `MonthCycleMath` (pure, unit-tested) handles the edges: a start day of 31 **clamps to the last day** in shorter months, and periods stay contiguous across year boundaries.
 
-Resolved periods are persisted as `BudgetPeriod` rows because budgets need a stable foreign key, and because a later cycle change must not shift periods that budgets already hang off. Reinforcing that: **an existing period covering a date always wins**, and cycle settings are stored append-only rather than overwritten.
+Periods are persisted as `BudgetPeriod` rows because budgets need a stable foreign key — but the row is an **anchor, not the source of truth**. Boundaries are recomputed from the user's current start day on every resolve, and the row is then found (or created) by that start date; a row cut under an older setting that shares the start date has its end date realigned. So changing the cycle re-cuts the current month straight away.
+
+The trade this makes: a cycle change can leave earlier rows whose windows overlap the new ones, and budgets set against a window you have since moved away from stay on that row. Going back to the old start day returns the original row with its budgets intact, because the start date is the key. Cycle settings remain append-only, which keeps the history of what the user chose.
+
+**Budgets carry forward into a new month.** A period is created empty, then seeded with the budgets of the most recent *earlier* period that has any — so figures set once keep applying until the user changes them. Three properties keep it predictable:
+
+- It only ever reads **backwards**, so browsing into history never rewrites the past.
+- It never touches a period that already holds budgets.
+- It runs **at most once per period**. `BudgetPeriod.BudgetsInitialized` is set when a period is seeded *and* by every budget write, so a month the user deliberately emptied is never refilled.
+
+Category and head budgets are copied together, which keeps rule 1 true by construction: the pair was already valid in the source month, and archived categories and heads are dropped on the way across — which only ever lowers a head total. A head budget is only carried under a category whose budget came across too, so "a category budget must exist first" also still holds.
+
+Seeding happens on the period-resolution path, so it is a write that can occur during a `GET`. That is not new — periods themselves have always been created lazily on read — but it does mean an impersonated (read-only) session viewing a future month can materialise that month's budgets. It writes only what the owner would have got anyway.
 
 ### 4. Impersonation is read-only, and enforced as an ordinary scope check
 

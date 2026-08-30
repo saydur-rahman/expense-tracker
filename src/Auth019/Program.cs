@@ -5,6 +5,9 @@ using Auth019.Models;
 using Auth019.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +16,12 @@ builder.AddServiceDefaults();
 
 builder.Services.AddDbContext<AuthDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("auth019db"));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("auth019db"),
+        // The history table moves into the schema too. Sharing one database with the
+        // expense API means two migration histories, and a single default-named table
+        // would have each service tearing down the other's migrations.
+        sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", AuthDbContext.Schema));
     options.UseOpenIddict();
 });
 
@@ -52,6 +60,12 @@ if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(goo
         options.ClientId = googleClientId;
         options.ClientSecret = googleClientSecret;
         options.SignInScheme = IdentityConstants.ExternalScheme;
+
+        // Google sends email_verified, but the handler does not map it by default —
+        // without this it never reaches the principal, ExternalLogin reads it as
+        // "unverified", and a Google address matching an existing account fails with
+        // "email is already taken" instead of linking to it.
+        options.ClaimActions.MapJsonKey("email_verified", "email_verified", ClaimValueTypes.Boolean);
     });
 }
 
@@ -105,9 +119,35 @@ builder.Services
         }
         else
         {
-            // Production keys come from the certificate store / mounted secrets.
-            options.AddEncryptionCertificate(builder.Configuration["OpenIddict:EncryptionCertificateThumbprint"]!)
-                   .AddSigningCertificate(builder.Configuration["OpenIddict:SigningCertificateThumbprint"]!);
+            var certificateBase64 = builder.Configuration["OpenIddict:SigningCertificateBase64"];
+            var thumbprint = builder.Configuration["OpenIddict:SigningCertificateThumbprint"];
+
+            if (!string.IsNullOrWhiteSpace(certificateBase64))
+            {
+                // Hosting that gives you no certificate store — App Service on the free
+                // tier, most containers — can still supply a PFX as a base64 setting.
+                var certificate = X509CertificateLoader.LoadPkcs12(
+                    Convert.FromBase64String(certificateBase64),
+                    builder.Configuration["OpenIddict:SigningCertificatePassword"],
+                    X509KeyStorageFlags.EphemeralKeySet);
+
+                options.AddSigningCertificate(certificate).AddEncryptionCertificate(certificate);
+            }
+            else if (!string.IsNullOrWhiteSpace(thumbprint))
+            {
+                options.AddEncryptionCertificate(builder.Configuration["OpenIddict:EncryptionCertificateThumbprint"]!)
+                       .AddSigningCertificate(thumbprint);
+            }
+            else
+            {
+                // Last resort so a first deployment can be smoke-tested. These keys live
+                // only in memory: every restart invalidates every token already issued,
+                // signing everyone out. Supply a real certificate before real users arrive.
+                Console.Error.WriteLine(
+                    "WARNING: no OpenIddict signing certificate configured — falling back to " +
+                    "ephemeral keys. Tokens will not survive a restart.");
+                options.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
+            }
         }
 
         // The expense API validates tokens as plain JWTs, so they must not be encrypted.
@@ -185,6 +225,14 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapRazorPages();
+
+// Auth019 is an identity server, not a destination — nothing lives at its root, so a
+// 404 here was a dead end for anyone who landed on it. Several paths can: signing in
+// from a login page opened directly (no ReturnUrl to come back to), the sign-out
+// fallback, or simply typing the host. Send them all to the app instead.
+app.MapGet("/", (IConfiguration configuration) =>
+    Results.Redirect(configuration["Spa:Origin"] ?? "http://localhost:5173"))
+    .ExcludeFromDescription();
 
 using (var scope = app.Services.CreateScope())
 {

@@ -1,9 +1,108 @@
 @import "tailwindcss";
 
+/**
+ * Two layers to the palette.
+ *
+ * MEANING — three colours, used sparingly:
+ *   blue   — the brand: actions, links, anything selected
+ *   green  — money you still have: budget left, income, savings
+ *   red    — trouble: over budget, overspent, destructive actions
+ *
+ * SURFACES — a cool, slightly blue-tinted neutral scale rather than white on grey.
+ * Nothing in the app is pure #fff or pure #000: the ground is a soft blue-grey and
+ * panels sit just above it, which is far easier to look at for a long session.
+ *
+ * The surface roles below are declared as plain custom properties and mapped into
+ * Tailwind with `@theme inline`, so `bg-card` / `text-ink` / `border-line` resolve
+ * to the right value in each theme on their own — no `dark:` variant needed at the
+ * call site, and no chance of a panel being restyled in one mode but not the other.
+ */
+
 :root {
   color-scheme: light dark;
+
+  --app-page: #eef2f7;
+  --app-card: #f8fafc;
+  --app-raised: #e4eaf3;
+  --app-input: #ffffff;
+  --app-track: #dfe6f0;
+  --app-line: #dbe3ec;
+  --app-line-soft: #e7edf5;
+  --app-ink: #0f1b2d;
+  --app-ink-soft: #3c4c63;
+  --app-ink-muted: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-page: #0b1220;
+    --app-card: #141d2e;
+    --app-raised: #1e293b;
+    --app-input: #0f1829;
+    --app-track: #24304a;
+    --app-line: #253248;
+    --app-line-soft: #1c2739;
+    --app-ink: #e6edf7;
+    --app-ink-soft: #b9c6d9;
+    --app-ink-muted: #8fa1bb;
+  }
+}
+
+@theme inline {
+  --color-page: var(--app-page);
+  --color-card: var(--app-card);
+  --color-raised: var(--app-raised);
+  --color-input: var(--app-input);
+  --color-track: var(--app-track);
+  --color-line: var(--app-line);
+  --color-line-soft: var(--app-line-soft);
+  --color-ink: var(--app-ink);
+  --color-ink-soft: var(--app-ink-soft);
+  --color-ink-muted: var(--app-ink-muted);
+}
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  --color-positive-50: #f0fdf4;
+  --color-positive-100: #dcfce7;
+  --color-positive-400: #4ade80;
+  --color-positive-500: #22c55e;
+  --color-positive-600: #16a34a;
+  --color-positive-700: #15803d;
+  --color-positive-950: #052e16;
+
+  --color-negative-50: #fef2f2;
+  --color-negative-100: #fee2e2;
+  --color-negative-400: #f87171;
+  --color-negative-500: #ef4444;
+  --color-negative-600: #dc2626;
+  --color-negative-700: #b91c1c;
+  --color-negative-950: #450a0a;
 }
 
 body {
   margin: 0;
+  background: var(--app-page);
+  color: var(--app-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keep the keyboard focus ring consistent everywhere without painting one on
+   every mouse click. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
 }

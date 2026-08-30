@@ -16,8 +16,17 @@ public class AuthDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Gui
     {
     }
 
+    /// <summary>
+    /// Every table Auth019 owns lives under this schema. The two services still share
+    /// no tables, but keeping them in separate schemas lets them sit in one database
+    /// where hosting only offers a single free one — see docs/DEPLOY.md.
+    /// </summary>
+    public const string Schema = "auth";
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
+        builder.HasDefaultSchema(Schema);
+
         base.OnModelCreating(builder);
 
         builder.Entity<ApplicationUser>(e =>
@@ -26,6 +35,7 @@ public class AuthDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Gui
             // otherwise adding this column backfills existing rows with 0 and locks
             // every pre-existing account out.
             e.Property(u => u.IsActive).HasDefaultValue(true);
+            e.Property(u => u.Country).HasMaxLength(2);
             e.HasIndex(u => u.LastLoginAtUtc);
         });
     }

@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
+using Microsoft.AspNetCore.WebUtilities;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Auth019.Controllers;
@@ -26,19 +27,22 @@ public class AuthorizationController : Controller
     private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly IOpenIddictScopeManager _scopeManager;
     private readonly TokenExchangeHandler _tokenExchangeHandler;
+    private readonly IOpenIddictTokenManager _tokenManager;
 
     public AuthorizationController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictScopeManager scopeManager,
-        TokenExchangeHandler tokenExchangeHandler)
+        TokenExchangeHandler tokenExchangeHandler,
+        IOpenIddictTokenManager tokenManager)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _applicationManager = applicationManager;
         _scopeManager = scopeManager;
         _tokenExchangeHandler = tokenExchangeHandler;
+        _tokenManager = tokenManager;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -87,6 +91,20 @@ public class AuthorizationController : Controller
                     [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
                     [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "This account has been deactivated.",
                 }));
+        }
+
+        // An account that never went through the registration form — an external
+        // sign-up, or one created before these fields existed — has no country, and
+        // therefore no currency to show amounts in. Collect it before issuing a token.
+        // Enforced here rather than in the external-login callback so that holding a
+        // session cookie is not a way around it.
+        if (string.IsNullOrWhiteSpace(user.Country))
+        {
+            var resumeUrl = Request.PathBase + Request.Path + QueryString.Create(
+                Request.HasFormContentType ? Request.Form : Request.Query);
+
+            return Redirect(QueryHelpers.AddQueryString(
+                "/Account/CompleteProfile", "returnUrl", resumeUrl));
         }
 
         var identity = await BuildIdentityAsync(user, request.GetScopes());
@@ -140,6 +158,18 @@ public class AuthorizationController : Controller
     [HttpGet("~/connect/logout"), HttpPost("~/connect/logout"), IgnoreAntiforgeryToken]
     public async Task<IActionResult> Logout()
     {
+        // Dropping the cookie alone leaves every refresh token already issued to this
+        // user still redeemable, so "log out" would not actually end the session —
+        // anything holding one could mint fresh access tokens indefinitely.
+        var user = await _userManager.GetUserAsync(User);
+        if (user is not null)
+        {
+            await foreach (var token in _tokenManager.FindBySubjectAsync(user.Id.ToString()))
+            {
+                await _tokenManager.TryRevokeAsync(token);
+            }
+        }
+
         await _signInManager.SignOutAsync();
 
         return SignOut(
@@ -165,6 +195,16 @@ public class AuthorizationController : Controller
             [Claims.Role] = await _userManager.GetRolesAsync(user),
         };
 
+        if (!string.IsNullOrWhiteSpace(user.Country))
+        {
+            claims[AppClaims.Country] = user.Country;
+            var currency = Countries.CurrencyFor(user.Country);
+            if (currency is not null)
+            {
+                claims[AppClaims.Currency] = currency;
+            }
+        }
+
         var impersonatedBy = User.GetClaim(AppClaims.ImpersonatedBy);
         if (!string.IsNullOrEmpty(impersonatedBy))
         {
@@ -186,6 +226,14 @@ public class AuthorizationController : Controller
             .SetClaim(Claims.Email, user.Email)
             .SetClaim(Claims.Name, user.DisplayName)
             .SetClaims(Claims.Role, (await _userManager.GetRolesAsync(user)).ToImmutableArray());
+
+        // Carried on the token so the app can format money the moment it loads,
+        // with no extra call. Null for accounts predating the country field.
+        if (!string.IsNullOrWhiteSpace(user.Country))
+        {
+            identity.SetClaim(AppClaims.Country, user.Country);
+            identity.SetClaim(AppClaims.Currency, Countries.CurrencyFor(user.Country));
+        }
 
         identity.SetScopes(requestedScopes);
         identity.SetResources(await _scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync());

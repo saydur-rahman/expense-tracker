@@ -13,6 +13,7 @@ Orientation for AI coding assistants. Read this before making changes.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the two services fit together and *why*. |
 | [docs/API.md](docs/API.md) | Endpoints and OAuth flows. |
 | [README.md](README.md) | Setup and running. |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Deploying to Azure on free tiers, and what that costs you in constraints. |
 | [docs/PLAN.md](docs/PLAN.md) | Original plan (historical; predates the OAuth split). |
 
 **Docs are current as of 2026-08-23.** If they disagree with the code, the code wins — and please fix the doc.
@@ -38,17 +39,29 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 
 1. **The expense API must never grow a user table, password handling, or token issuance.** Auth019 owns identity. There is deliberately no foreign key from expense data to users — that FK cannot cross a service boundary.
 
+   **Auth019's tables live in the `auth` schema**, the expense API's in `dbo`, each with its own migration-history table. That is what lets the two share a single database in hosting that only offers one for free — they still share no tables. Don't remove the schema or the `MigrationsHistoryTable` call: the two services would then overwrite each other's migration history. See [docs/DEPLOY.md](docs/DEPLOY.md).
+
 2. **A category's head budgets can never exceed the category's own budget** for that period. Lives in `BudgetService`, transactionally. Not a DB constraint (cross-row SUM). A category budget must exist before any head budget; clearing a category's budget for a month clears its heads' budgets too.
 
 3. **Categories and Heads are never hard-deleted.** `IsArchived` + EF global query filters. Their past expenses and budgets must stay visible in history and reports — which is why those queries call `IgnoreQueryFilters()`. **If you add a history or report query, it needs that too**, or archived data silently vanishes from the views meant to preserve it.
 
-4. **A "month" is a stored `BudgetPeriod` row**, not calendar math. Users pick their own cycle start day. An existing period covering a date always wins. Date edge cases live in `MonthCycleMath` (unit-tested — extend those tests if you touch it).
+4. **A month's boundaries are always computed from the user's current cycle start day.** `MonthCycleMath` does the arithmetic (unit-tested — extend those tests if you touch it); `BudgetPeriod` rows exist only as a stable anchor for budgets to hang off, keyed by start date, and **never override the calculation**. Changing the start day re-cuts the current month immediately. A row cut under an older setting that shares a start date is realigned to the new end date. *(This reverses the earlier "an existing period covering a date always wins" rule, which meant a cycle change silently did nothing until the next month.)*
+
+   **A new month inherits the previous month's budgets.** Seeding runs backwards-only, never over a period that already has budgets, and **at most once per period** — `BudgetsInitialized` is set both when a period is seeded and by every budget write, so a month the user emptied on purpose stays empty. If you add a budget write path, set that flag.
 
 5. **Impersonation is read-only, enforced as a scope check.** The impersonation token carries `expense.read` only, no roles, no refresh token. `RequireWriteScopeFilter` is registered **globally** so any new write endpoint is protected by default — **don't add per-endpoint exceptions**, and don't make the expense API aware of impersonation as a concept.
 
 6. **Deactivation must be checked at every token-issuing path** (authorize, refresh, token exchange).
 
+   **Logout must revoke tokens, not just clear the cookie**, or refresh tokens outlive the session. And the SPA's `post_logout_redirect_uri` must stay a **public** route (`/signed-out`) — pointing it at a protected one restarts sign-in immediately, which an external provider answers silently and makes logout look broken. Fix that landing page, not the provider: the external challenge deliberately sends **no** `prompt`, so a user already signed in to Google goes straight through.
+
+   **So must profile completeness.** `Authorize()` refuses to mint a token for an account with no `Country` and sends it to `/Account/CompleteProfile` first — that is what stops an external (Google) sign-up, which never sees the registration form, from ending up with no currency. Keep the check on the token-issuing path, not the sign-in callback, or a stale session cookie walks straight past it.
+
+   **Impersonation is read-only in Auth019 too.** `PUT /api/profile` refuses a token carrying `imp_by`. Any new Auth019 write endpoint reachable by an ordinary user needs the same check — the `auth.admin` scope doesn't cover it, because profile writes don't require that scope.
+
 7. **Every expense-API query is scoped by the `sub` claim** via `ICurrentUser`. Never trust a client-supplied user id. This — not the archive filter — is the tenant isolation boundary.
+
+8. **Expense and income are separate ledgers that must never cross.** `Category.Kind` decides which one a category (and every head under it) belongs to. Income takes **no budget**, ever. Three service-level guards enforce it — `BudgetService` rejects budgets on income, `ExpenseService` rejects spending against an income head, `IncomeService` rejects income against a spending head. Any new query over categories, heads, budgets or totals must filter by `Kind`, or the dashboard's figures silently mix the two.
 
 ---
 
@@ -58,6 +71,7 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 - **Errors**: throw `AppException` subclasses (400/403/404/409); middleware maps them. Write messages for end users saying what to do next — match the tone of the budget errors.
 - **Frontend server state** goes through TanStack Query; invalidate query keys after mutations.
 - **`auth/jwt.ts` decodes tokens for display only** — never a security decision. The API validates every token.
+- **Colour is semantic and limited to three**: `brand-*` (blue) for actions and selection, `positive-*` (green) for money still held, `negative-*` (red) for trouble and destructive actions. **Surfaces use the semantic roles** `page`/`card`/`raised`/`input`/`track`/`line`/`line-soft`/`ink`/`ink-soft`/`ink-muted`, which resolve per theme on their own — write `bg-card`, never `bg-white dark:bg-gray-900`, and never reach for raw `gray-*`/`indigo-*`. Reuse `components/Button.tsx` and the class constants in `components/ui.ts` rather than re-typing card/input classes. **If you change a chart colour, re-run the data-viz validator against both card surfaces.**
 - **Mobile-first CSS**: base styles narrow, `md:`/`lg:` on top.
 - **Money** is `decimal(18,2)`, configured explicitly.
 - **Package versions** are centralized in `Directory.Packages.props`; don't put `Version=` in a csproj.

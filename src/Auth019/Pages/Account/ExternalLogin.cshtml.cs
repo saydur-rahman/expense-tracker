@@ -59,6 +59,19 @@ public class ExternalLoginModel : PageModel
 
             if (user is null)
             {
+                // The address already belongs to an account, but the provider has not
+                // vouched for it — linking here would let an unverified address take
+                // over someone else's data. Creating a second account is impossible
+                // (emails are unique), so explain the way out rather than surfacing
+                // Identity's "already taken".
+                if (await _userManager.FindByEmailAsync(email) is not null)
+                {
+                    ErrorMessage =
+                        $"An account already exists for {email}, and {info.LoginProvider} hasn't " +
+                        "confirmed you own that address. Sign in with your password instead.";
+                    return Page();
+                }
+
                 user = new ApplicationUser
                 {
                     UserName = email,

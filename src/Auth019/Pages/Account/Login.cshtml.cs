@@ -90,6 +90,16 @@ public class LoginModel : PageModel
 
         var redirectUrl = Url.Page("./ExternalLogin", pageHandler: "Callback", values: new { ReturnUrl });
         var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+
+        // Deliberately no `prompt` parameter. Someone already signed in to Google
+        // should go straight through on the account they are using; Google shows its
+        // own chooser anyway when more than one account is signed in.
+        //
+        // Don't add `prompt=select_account` to make logout look convincing — that was
+        // tried, and it fixes the wrong thing. Logout is honest because it lands on
+        // the public /signed-out page and revokes the user's tokens; the silent
+        // re-authentication people mistook for a broken logout was the SPA bouncing
+        // itself into a fresh sign-in from a protected landing page.
         return Challenge(properties, provider);
     }
 

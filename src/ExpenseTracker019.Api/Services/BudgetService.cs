@@ -43,6 +43,8 @@ public class BudgetService : IBudgetService
                 $"Lower the head budgets before setting the category budget below that.");
         }
 
+        MarkBudgetsSettled(period);
+
         var existing = await _db.CategoryBudgets
             .FirstOrDefaultAsync(cb => cb.BudgetPeriodId == periodId && cb.CategoryId == categoryId);
 
@@ -99,6 +101,8 @@ public class BudgetService : IBudgetService
                 $"At most {remaining:0.##} is left for this head.");
         }
 
+        MarkBudgetsSettled(period);
+
         var existing = await _db.HeadBudgets
             .FirstOrDefaultAsync(hb => hb.BudgetPeriodId == periodId && hb.HeadId == headId);
 
@@ -129,6 +133,8 @@ public class BudgetService : IBudgetService
         await EnsureCategoryOwnedAsync(userId, categoryId);
 
         await using var tx = await _db.Database.BeginTransactionAsync();
+
+        MarkBudgetsSettled(period);
 
         var categoryBudget = await _db.CategoryBudgets
             .FirstOrDefaultAsync(cb => cb.BudgetPeriodId == periodId && cb.CategoryId == categoryId);
@@ -161,11 +167,20 @@ public class BudgetService : IBudgetService
         if (existing is not null)
         {
             _db.HeadBudgets.Remove(existing);
-            await _db.SaveChangesAsync();
         }
+
+        MarkBudgetsSettled(period);
+        await _db.SaveChangesAsync();
 
         return await BuildAsync(userId, period);
     }
+
+    /// <summary>
+    /// Records that the user has set this month's budgets themselves. Carry-forward
+    /// checks this flag, so a month someone deliberately emptied is never refilled
+    /// from the month before it.
+    /// </summary>
+    private static void MarkBudgetsSettled(BudgetPeriod period) => period.BudgetsInitialized = true;
 
     private async Task<decimal> SumHeadBudgetsAsync(Guid periodId, Guid categoryId, Guid? excludingHeadId)
     {
@@ -180,24 +195,42 @@ public class BudgetService : IBudgetService
         return await query.SumAsync(hb => (decimal?)hb.Amount) ?? 0m;
     }
 
+    /// <summary>
+    /// Budgets exist to cap spending, so an income category can never carry one —
+    /// which is also what keeps the dashboard's budget totals purely about expenses.
+    /// </summary>
     private async Task EnsureCategoryOwnedAsync(Guid userId, Guid categoryId)
     {
-        var exists = await _db.Categories.AnyAsync(c => c.Id == categoryId && c.UserId == userId);
-        if (!exists)
+        var category = await _db.Categories
+            .FirstOrDefaultAsync(c => c.Id == categoryId && c.UserId == userId)
+            ?? throw new NotFoundAppException("Category not found.");
+
+        if (category.Kind != CategoryKind.Expense)
         {
-            throw new NotFoundAppException("Category not found.");
+            throw new ValidationAppException("Income categories don't take a budget.");
         }
     }
 
     private async Task<Head> GetOwnedHeadAsync(Guid userId, Guid headId)
-        => await _db.Heads.FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
-           ?? throw new NotFoundAppException("Head not found.");
+    {
+        var head = await _db.Heads
+            .Include(h => h.Category)
+            .FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
+            ?? throw new NotFoundAppException("Head not found.");
+
+        if (head.Category.Kind != CategoryKind.Expense)
+        {
+            throw new ValidationAppException("Income heads don't take a budget.");
+        }
+
+        return head;
+    }
 
     private async Task<PeriodBudgetsDto> BuildAsync(Guid userId, BudgetPeriod period)
     {
         var categories = await _db.Categories
             .Include(c => c.Heads)
-            .Where(c => c.UserId == userId)
+            .Where(c => c.UserId == userId && c.Kind == CategoryKind.Expense)
             .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name)
             .ToListAsync();
 

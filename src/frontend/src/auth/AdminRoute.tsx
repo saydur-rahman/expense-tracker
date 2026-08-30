@@ -5,8 +5,8 @@ export default function AdminRoute() {
   const { isAdmin, isLoading } = useAuth()
 
   if (isLoading) {
-    return <p className="p-6 text-gray-500">Loading…</p>
+    return <p className="p-6 text-ink-muted">Loading…</p>
   }
 
-  return isAdmin ? <Outlet /> : <Navigate to="/" replace />
+  return isAdmin ? <Outlet /> : <Navigate to="/"replace />
 }
