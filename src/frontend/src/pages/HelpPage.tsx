@@ -139,6 +139,14 @@ export default function HelpPage() {
           note is optional — the amount and the head are what matter.
         </p>
         <p>
+          <strong className="font-medium text-ink">Any amount box does sums.</strong> Type{' '}
+          <code className="rounded bg-raised px-1 py-0.5 text-xs">635*3</code> and it saves
+          1,905 — the running total appears under the box as you type. It handles{' '}
+          <code className="rounded bg-raised px-1 py-0.5 text-xs">+ − × ÷</code> and brackets,
+          so <code className="rounded bg-raised px-1 py-0.5 text-xs">(12+8)*4</code> works too.
+          This is the same everywhere an amount is asked for, budgets included.
+        </p>
+        <p>
           Both screens list what you've logged in the current period and let you filter down
           to a single head. Income works the same way against your income heads.
         </p>

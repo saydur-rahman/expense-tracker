@@ -4,6 +4,8 @@ import { categoriesApi } from '../../api/categories'
 import { incomesApi } from '../../api/incomes'
 import { ApiError } from '../../api/client'
 import { useMoney } from '../../lib/money'
+import { amountValue } from '../../lib/calc'
+import AmountField from '../../components/AmountField'
 import SearchableSelect, { type SelectOption } from '../../components/SearchableSelect'
 
 function today() {
@@ -33,7 +35,7 @@ export default function IncomesPage() {
     mutationFn: () =>
       incomesApi.create({
         headId,
-        amount: Number(amount),
+        amount: amountValue(amount) ?? 0,
         incomeDate: date,
         note: note.trim() || undefined,
       }),
@@ -78,7 +80,7 @@ export default function IncomesPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            if (headId && amount) createIncome.mutate()
+            if (headId && amountValue(amount) !== null) createIncome.mutate()
           }}
           className="flex flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-sm"
         >
@@ -89,12 +91,14 @@ export default function IncomesPage() {
             placeholder="Choose a head…"
           />
 
-          <div className="flex gap-2">
-            <input
-              inputMode="decimal" value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Amount"required
-              className="flex-1 rounded-lg border border-line bg-card px-3 py-2.5 text-base transition-colors focus:border-brand-500 focus:outline-none"
+          {/* items-start so the date keeps its height when the amount grows a hint. */}
+          <div className="flex items-start gap-2">
+            <AmountField
+              value={amount}
+              onChange={setAmount}
+              placeholder="Amount" required
+              wrapperClassName="flex-1"
+              className="w-full rounded-lg border border-line bg-card px-3 py-2.5 text-base transition-colors focus:border-brand-500 focus:outline-none"
             />
             <input
               type="date" value={date}

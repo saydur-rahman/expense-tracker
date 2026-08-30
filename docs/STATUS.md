@@ -151,6 +151,16 @@ All of the following were exercised against **live running services**, not just 
 - The Budgets screen's category cards now fold, matching the dashboard's, which already did. More than four and they start folded so the whole period fits on one screen; a search always opens its matches
 - Collapsed, a card still says what matters: how many of its heads are budgeted, and whether the total matches the target
 
+**Amount fields do arithmetic (added 2026-08-30)**
+- Typing `635*3` in any amount box saves 1905, with the running total shown under the box as you type. Handles `+ - * /`, brackets, unary minus, `×`/`÷`, and grouping commas
+- `lib/calc.ts` is a hand-written tokeniser and recursive-descent parser, **deliberately not `eval` or `new Function`** — the input is user text, and this way the grammar is exactly `+ - * / ( )` over numbers and there is no path to an identifier, a property access or a global
+- `components/AmountField` is the shared input; `AmountHint` is exported separately for fields with their own layout, which is how the compact Budgets inputs show the same line. **New amount fields should use these rather than `Number(input)`** — recorded as a convention in `AGENTS.md`
+- Wired into expenses, income, head budgets and category targets. An unreadable draft in a budget field is left on screen next to the message rather than silently discarded on blur
+- `inputMode` on these fields moved from `decimal` to `text`. **This is a real trade-off:** an iOS decimal keypad offers digits and a separator only, with no way to reach `*`, so the arithmetic would have worked on desktop and not on the phone this app is built for. The cost is a full keyboard for plain numbers; pass `inputMode="decimal"` per field to take the old behaviour back
+- Results settle to two decimals, matching `decimal(18,2)` storage — `10/3` is 3.33, and `0.1+0.2` is 0.3 rather than 0.30000000000000004
+- Verified with **34 checks** against the evaluator, run through Node's type stripping rather than adding a frontend test runner: precedence, brackets, associativity, rounding, and rejection of letters, unbalanced brackets, double operators, division by zero, and `alert(1)` / `this.x` / `process`
+- **Not yet seen in a browser** — the dev sign-in session had ended and signing back in needs the user's own password
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one

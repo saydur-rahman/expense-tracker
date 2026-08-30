@@ -5,6 +5,8 @@ import { budgetsApi, type CategoryBudget } from '../../api/budgets'
 import { ApiError } from '../../api/client'
 import PeriodPicker from '../../components/PeriodPicker'
 import { useMoney } from '../../lib/money'
+import { readAmount } from '../../lib/calc'
+import { AmountHint } from '../../components/AmountField'
 
 export default function BudgetSetupPage() {
   const [offset, setOffset] = useState(0)
@@ -236,6 +238,10 @@ function TargetNote({ category, compact }: { category: CategoryBudget; compact?:
   )
 }
 
+/**
+  * Commits on blur. Accepts arithmetic — see `lib/calc` — so a budget can be typed as
+  * `635*3`; the hint underneath shows what that comes to before you leave the field.
+  */
 function AmountInput({
   value,
   placeholder,
@@ -249,23 +255,28 @@ function AmountInput({
   const shown = draft ?? (value !== null ? String(value) : '')
 
   return (
-    <input
-      inputMode="decimal" value={shown}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onBlur={() => {
-        if (draft === null) return
-        const trimmed = draft.trim()
-        setDraft(null)
-        if (trimmed === '') {
-          if (value !== null) onCommit(null)
-          return
-        }
-        const parsed = Number(trimmed)
-        if (!Number.isNaN(parsed) && parsed !== value) onCommit(parsed)
-      }}
-      className="w-28 shrink-0 rounded border border-line px-2 py-1.5 text-right text-sm"
-    />
+    <span className="shrink-0 text-right">
+      <input
+        inputMode="text" value={shown}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onBlur={() => {
+          if (draft === null) return
+          const reading = readAmount(draft)
+          // An unreadable draft is left in place rather than silently discarded, so the
+          // typo stays on screen next to the message explaining it.
+          if (reading.kind === 'invalid') return
+          setDraft(null)
+          if (reading.kind === 'empty') {
+            if (value !== null) onCommit(null)
+            return
+          }
+          if (reading.value !== value) onCommit(reading.value)
+        }}
+        className="w-28 rounded border border-line px-2 py-1.5 text-right text-sm"
+      />
+      {draft !== null && <AmountHint raw={draft} className="mt-1" />}
+    </span>
   )
 }
