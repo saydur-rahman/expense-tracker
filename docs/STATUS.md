@@ -12,7 +12,7 @@ The app was re-architected from a single API with embedded auth into **two indep
 
 Everything **builds, runs under Aspire, and has been verified end to end against live services** — including the full Authorization Code + PKCE flow, cross-service token validation, and every security boundary.
 
-The main caveat is unchanged: **the UI has never been opened in a browser.**
+The main caveat is nearly unchanged: **almost none of the UI has been opened in a browser.** The exceptions, as of 2026-08-30, are the dashboard, the settings/profile screen (including the new password card) and the new help page — see those entries below.
 
 ---
 
@@ -100,6 +100,56 @@ All of the following were exercised against **live running services**, not just 
 - This also catches accounts created **before** the country field existed. `admin@example.com` and `victim@example.com` were given `BD` locally so the test scripts keep working; a real user is simply asked once
 - Verified against live services (17 checks): authorize redirects and issues no code; the page renders 244 countries; a blank mobile and a forged country code are both rejected; completing it resumes the original authorize request and the resulting token carries `country` and `currency`; an already-complete account is not interrupted
 - Regressions all clean afterwards: profile 21, income 23, month cycle 14, carry-forward 15, unit tests 11
+
+**Changing your password from the Profile screen (added 2026-08-30)**
+- The Profile screen gained a second card: **new password** and **retype password**, nothing else. There was previously no way to change a password at all once registered
+- New `PUT {auth}/api/profile/password` on Auth019. It asks for **no current password** — the bearer token is the proof of identity
+- **A Google-only account is not offered this at all.** `ProfileDto.hasPassword` drives it: the card is hidden when false, and the endpoint refuses with a 400 rather than trusting the client to have hidden it. It replaces a password, never grants one — a Google user's credential lives at Google. Linking Google to an account that already has a password leaves the password intact, so those users keep the card
+- Internally a `GeneratePasswordResetTokenAsync` + `ResetPasswordAsync` pair — the token is minted and spent inside the request, never handed out. Strength stays Identity's to judge, so a rejected password gets the same message registration would have given
+- Impersonation is refused here exactly as on `PUT /api/profile` (rule 6); the guard is now one shared `ImpersonationBlocked()` helper covering both
+- Verified against live services (14 checks): a freshly registered email/password account reports `hasPassword: true`; a mismatch, a blank and a too-short password are each rejected with their own message; a valid change returns 204; **the old password then fails to sign in and the new one succeeds**; an account with no password reports `hasPassword: false` and is refused with 400, gaining none; an impersonated session is refused with 403 and the password is untouched afterwards
+- Changing the password moves the Identity security stamp, so the Auth019 **cookie** session dies within the 30-minute validation interval. The SPA keeps working — it renews on the refresh token, which OpenIddict does not stamp-check — but a fresh `authorize` asks for the new password. That is the wanted behaviour; don't "fix" it
+- The Google-only case is exercised by nulling `PasswordHash` on a freshly registered account — the same state an external sign-up lands in — because Google credentials have never been configured locally. The UI branch (card hidden) follows from the same `hasPassword` flag the endpoint checks
+
+**In-app Help page (added 2026-08-30)**
+- New `/help` (`pages/HelpPage.tsx`), reached from a **?** in the header — deliberately not in the nav, which already carries five or six items on a phone
+- Walks the app in the order someone meets it: month cycle → categories and heads → budgets → logging → dashboard, then the standing explanations (removing keeps history, currency, sign-in, password, feedback) and an **admin-only block** gated on `isAdmin`
+- Written in the user's words, not the codebase's — no entity names, endpoints or scopes. It leads on the rules people get wrong: heads can't exceed their category, budgets carry forward on their own, income takes no budget, removing keeps history
+- **This page is now part of every feature.** A change that alters what a user sees or does updates it in the same change — recorded as a convention in `AGENTS.md` and as the `help-page` skill, which carries the when/how and a table of what does and doesn't warrant an edit
+- **Read in a real browser** (first UI screen in this project to be): the page renders end to end at desktop width, the header **?** highlights as the active route, every internal link resolves, and the admin block correctly does **not** appear for a non-admin
+- Not yet seen: the **narrow/mobile** rendering (the extension's window resize reported success but never took effect — the page has no responsive branching of its own, so the risk is low) and the **admin block** rendered for an admin, which needs an admin sign-in
+
+**Deep links survive sign-in (fixed 2026-08-30)**
+- `CallbackPage` always navigated to `/`, and nothing stashed the route being attempted — so **every** deep link (`/help`, `/expenses`, `/settings/profile`, a bookmark, a link from an email) dumped the user on the dashboard after signing in. Found by navigating straight to `/help` in a fresh tab
+- The attempted path now rides in the OIDC **`state`** parameter: `login()` sends `currentReturnPath()`, and the callback navigates to `safeReturnPath(user.state)`
+- **`state` is validated, not trusted** — it round-trips through a URL and browser storage. Only a single-slash local path is accepted: `//host` and `/\host` are both browser-legal ways of leaving the site, and the auth routes themselves (`/callback`, `/silent-renew`, `/signed-out`) are excluded because landing back on one of them loops
+- Verified in a browser: a fresh tab (empty `sessionStorage`, so a real sign-in round trip on the existing Auth019 cookie) opened at `/settings/profile` and at `/help` lands on **that** screen, not the dashboard
+
+**Weekly budgets (added 2026-08-30)**
+- A user now picks their **rhythm** in Settings → Budget cycle: **monthly** from a day of the month, or **weekly** from a day of the week. One rhythm at a time
+- The storage model already suited this — a `BudgetPeriod` is just a start and an end date, and reports filter expenses by **date range**, not period id. So `BudgetService`, `ExpenseService`, `IncomeService`, `ReportService`, the dashboard and the budget constraint were **not touched at all**
+- `PeriodKind` lands on both the setting row and `BudgetPeriod`. **It is part of a period's identity**: the unique index is now `(UserId, Kind, StartDate)` and every lookup filters on it, because a week and a month can start on the same day and the realign branch would otherwise rewrite one into the other. Carry-forward filters on it too, so a month's figure never lands in a week
+- Switching rhythm leaves everything already budgeted untouched, and the first period on the new rhythm starts **unbudgeted** — a monthly figure sliced into weeks would be an amount the user never chose
+- `MonthCycleMath` gained `ResolveWeekContaining`, `ShiftWeek` and `BuildWeekLabel`. The separate week label matters: `BuildLabel` shortens anything starting on the 1st to "Sep 2026", which for a week names a span five times too long
+- **Bug caught only by running it: `HasDefaultValue` on an enum column silently discards the CLR default value.** EF treats such a property as store-generated and sends `DEFAULT`, so a user choosing `DayOfWeek.Sunday` (0) was written as the column default, Monday. Fixed with `ValueGeneratedNever()` on all three new enum columns — the column default still backfills old rows. A build and the unit tests were both green while this was broken
+- Unit tests 11 → **27** (week resolution for all seven start days, month/year wrap, shifting, and every label form)
+- Verified against live services (20 checks) with the cycle deliberately set so **the month and the week start on the same day**: both resolve as separate rows with their own labels, the first week is unbudgeted, the next week inherits the weekly figure and not the monthly one, and switching back finds the same month row with its end date and its budgets intact
+- Seen in a browser: the Monthly/Weekly toggle, the day grid, the day-of-week list, and the warning shown only when the rhythm is actually being changed
+
+**Heads drive the budget; the category figure is only a target (changed 2026-08-30)**
+- **This replaces the original budget rule.** There is no ceiling any more. Put a figure on a head and it is accepted — no category budget needed first, and nothing caps it. A category's budget *is* what its heads add up to
+- The figure stored on the category is a **target**: what you meant to spend. It never limits the heads and stands in as the budget only when **no** head is budgeted at all. Heads over or under it are reported as "200 extra" / "150 short", never refused
+- Clearing the target no longer wipes the head budgets with it — that behaviour only made sense while heads lived inside the category's bounds
+- The same rule had to land in **two** places: `BudgetService` for the editor and `ReportService` for the dashboard. They must agree; if the rule changes, change both
+- Carry-forward now copies head budgets **independently** of category targets. Gated the old way, a user who only ever fills in heads would lose their entire budget at the turn of the period
+- `CategoryBudgetDto` gained `target` and `difference` and lost `unallocated`; `amount` now means *the budget in force* rather than *the category row*
+- **Existing data is unaffected in practice** — a category whose heads already sum to its budget reads identically. Where they don't, the category's budget now follows the heads
+- Verified against live services (27 checks): a head budgeted with no category budget at all; heads never capped; a target under, over and equal to the head total; the dashboard measuring 1100 spent against the 1200 head total rather than the 1000 target; clearing the target leaving both head budgets intact; a target alone still working as the budget; and head-only budgets carrying into the next period
+- Seen in a browser: heads directly editable, the heads total, the optional target, and the short/extra line
+
+**Budget cards collapse (added 2026-08-30)**
+- The Budgets screen's category cards now fold, matching the dashboard's, which already did. More than four and they start folded so the whole period fits on one screen; a search always opens its matches
+- Collapsed, a card still says what matters: how many of its heads are budgeted, and whether the total matches the target
 
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":

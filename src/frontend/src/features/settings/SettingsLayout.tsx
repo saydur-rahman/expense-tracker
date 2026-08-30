@@ -1,8 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const sections = [
-  { to: 'profile', label: 'Profile', hint: 'Your name, mobile and country' },
-  { to: 'month-cycle', label: 'Month cycle', hint: 'The day your month starts' },
+  { to: 'profile', label: 'Profile', hint: 'Your name, mobile, country and password' },
+  { to: 'month-cycle', label: 'Budget cycle', hint: 'Monthly or weekly, and when it starts' },
   { to: 'feedback', label: 'Feedback', hint: 'Tell us what could be better' },
 ]
 

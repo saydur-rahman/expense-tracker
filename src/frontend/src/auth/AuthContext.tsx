@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { User } from 'oidc-client-ts'
 import {
   userManager,
+  currentReturnPath,
   stashAdminSession,
   takeAdminSession,
   hasAdminSession,
@@ -126,7 +127,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applyOidcUser])
 
-  const login = useCallback(() => userManager.signinRedirect(), [])
+  // Carry the route they were trying to reach through Auth019 and back, so a deep
+  // link (or a bookmarked screen) doesn't dump them on the dashboard after signing in.
+  const login = useCallback(
+    () => userManager.signinRedirect({ state: currentReturnPath() }),
+    [],
+  )
 
   const logout = useCallback(async () => {
     // signoutRedirect() removes the stored user BEFORE it navigates, which fires

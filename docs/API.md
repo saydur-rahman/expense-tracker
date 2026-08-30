@@ -97,13 +97,16 @@ The signed-in user's own record. Lives here because Auth019 owns user data.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `{auth}/api/profile` | `{id, email, displayName, mobileNumber, country, countryName, currencyCode}` |
+| GET | `{auth}/api/profile` | `{id, email, displayName, mobileNumber, country, countryName, currencyCode, hasPassword}` |
 | PUT | `{auth}/api/profile` | `{displayName, mobileNumber, country}` — **email is not editable**; 400 on an unknown country |
+| PUT | `{auth}/api/profile/password` | `{newPassword, confirmPassword}` → 204; 400 on a mismatch, a password Identity rejects, or an account with no password |
 | GET | `{auth}/api/profile/countries` | The 244 country options, each with the currency it implies |
 
-Any valid token may **read** a profile. An **impersonated** token (one carrying `imp_by`) is refused on `PUT` with 403 — impersonation is read-only everywhere, and editing someone's profile while wearing their identity would be the loudest possible breach of that.
+Any valid token may **read** a profile. An **impersonated** token (one carrying `imp_by`) is refused on both `PUT` routes with 403 — impersonation is read-only everywhere, and editing someone's profile while wearing their identity would be the loudest possible breach of that.
 
 Changing the country changes the currency, but the currency travels on the access token, so the app must obtain a fresh token (a silent renew) before the new currency shows up.
+
+The password route asks for **no current password**: the bearer token is the proof of identity. It **only ever replaces** a password, never grants one — an account with `hasPassword: false` (Google-only) is refused, and the profile screen hides the card for it entirely. Their credential lives at Google; this is not a route to acquiring a local one. Linking Google to an account that already has a password leaves the password intact, so those users keep the route. Strength is Identity's to judge, so the message on a rejected password matches what registration would have said.
 
 ### Admin API
 
@@ -130,14 +133,21 @@ All data is scoped to the token's `sub`; another user's ids return 404, never th
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/settings/month-cycle` | `{startDay, isConfigured}` |
-| PUT | `/api/settings/month-cycle` | `{startDay}` (1–31) |
+| GET | `/api/settings/month-cycle` | `{periodKind, startDay, weekStartsOn, isConfigured}` |
+| PUT | `/api/settings/month-cycle` | `{periodKind, startDay, weekStartsOn}` — `periodKind` is `Month` or `Week` |
+
+`periodKind` picks the rhythm; only the field governing it is validated (`startDay` 1–31 for
+`Month`, `weekStartsOn` a `DayOfWeek` name for `Week`). **Send both regardless** — the unused
+one is stored as-is, so switching to weekly and back keeps the day of the month already chosen.
+
+The route is still `month-cycle` for compatibility with existing links; it now governs both
+rhythms. Settings are append-only and effective-dated, so switching never rewrites history.
 
 ### Budget periods
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/current` | Period containing today |
+| GET | `/api/budget-periods/current` | Period containing today. Carries `kind` (`Month`/`Week`) alongside `startDate`, `endDate`, `label` |
 | GET | `/api/budget-periods/relative/{offset}` | `-1` previous, `1` next |
 | GET | `/api/budget-periods/{id}` | One period |
 | GET | `/api/budget-periods` | All, newest first |
@@ -162,15 +172,21 @@ Categories carry a `kind` of `Expense` or `Income` (serialised as a string). The
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/{periodId}/budgets` | Categories + heads with amounts and remaining allowance |
-| PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` |
-| DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears it **and its heads' budgets** for this period only |
-| PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; enforces the category ceiling |
+| GET | `/api/budget-periods/{periodId}/budgets` | Per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
+| PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` — sets the **target**; never caps the heads |
+| DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears the target only; **head budgets are left alone** |
+| PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; no category budget needed first, and nothing caps it |
 | DELETE | `/api/budget-periods/{periodId}/heads/{headId}/budget` | Clears this head's budget for this period |
 
 All four return the full updated period budget, so no follow-up fetch is needed.
 
-**Rejections to expect (400):** setting a head budget with no category budget; heads exceeding the category total (names the remaining allowance); lowering a category below its heads' sum (names the current total).
+**Heads are authoritative.** `amount` — the budget the dashboard measures spending against —
+is the head total once *any* head is budgeted, and falls back to `target` only when none is.
+`difference` is `allocatedToHeads − target`: positive means that much **extra** over the
+target, negative that much **short** of it, and null when there is nothing to compare.
+
+**Rejections to expect (400):** a negative amount. Nothing else — heads over or under the
+target are reported through `difference`, never refused.
 
 ### Expenses
 

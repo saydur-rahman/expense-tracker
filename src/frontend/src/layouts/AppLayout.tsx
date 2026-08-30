@@ -35,6 +35,22 @@ export default function AppLayout() {
           </span>
 
           <div className="flex items-center gap-1">
+            {/* Help sits in the header rather than the nav: it belongs to no single
+                screen, and the bottom bar is already full on a narrow phone. */}
+            <NavLink
+              to="/help"
+              aria-label="Help"
+              title="Help"
+              className={({ isActive }) =>
+                `grid size-8 place-items-center rounded-lg text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300'
+                    : 'text-ink-muted hover:bg-raised hover:text-ink'
+                }`
+              }
+            >
+              ?
+            </NavLink>
             <NavLink
               to="/settings" className="rounded-lg px-2.5 py-1.5 text-sm text-ink-soft transition-colors hover:bg-raised hover:text-brand-700 dark:hover:text-brand-300"
             >

@@ -42,6 +42,7 @@ public class BudgetPeriodsController : ControllerBase
     private static BudgetPeriodDto ToDto(BudgetPeriod period) => new()
     {
         Id = period.Id,
+        Kind = period.Kind,
         StartDate = period.StartDate,
         EndDate = period.EndDate,
         Label = period.Label,

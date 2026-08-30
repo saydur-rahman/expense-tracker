@@ -35,7 +35,7 @@ export default function BudgetSetupPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">Budgets</h1>
         <p className="text-sm text-ink-muted">
-          Set a budget per category, then split it across its heads.
+          Put a figure on each head — the category is what they add up to.
         </p>
       </div>
 
@@ -58,9 +58,16 @@ export default function BudgetSetupPage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {visibleCategories.map((category) => (
-          <CategoryBudgetCard key={category.categoryId} periodId={budgets!.periodId} category={category} />
+          <CategoryBudgetCard
+            key={category.categoryId}
+            periodId={budgets!.periodId}
+            category={category}
+            // A handful of categories is nothing to tidy away; past that, start collapsed
+            // so the whole period fits on one screen. Searching always opens the matches.
+            defaultOpen={visibleCategories.length <= 4 || query.length > 0}
+          />
         ))}
       </div>
 
@@ -73,64 +80,79 @@ export default function BudgetSetupPage() {
   )
 }
 
-function CategoryBudgetCard({ periodId, category }: { periodId: string; category: CategoryBudget }) {
+function CategoryBudgetCard({
+  periodId,
+  category,
+  defaultOpen,
+}: {
+  periodId: string
+  category: CategoryBudget
+  defaultOpen: boolean
+}) {
   const queryClient = useQueryClient()
   const money = useMoney()
   const [error, setError] = useState<string | null>(null)
-
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['budgets'] })
+  const [open, setOpen] = useState(defaultOpen)
 
   const mutation = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
     onSuccess: () => {
       setError(null)
-      refresh()
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
   })
 
-  const overAllocated = category.unallocated !== null && category.unallocated < 0
+  const headCount = category.heads.length
+  const budgetedHeads = category.heads.filter((h) => h.amount !== null).length
 
   return (
-    <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-ink">{category.categoryName}</span>
-        <AmountInput
-          value={category.amount}
-          placeholder="Set budget" onCommit={(amount) =>
-            mutation.mutate(() =>
-              amount === null
-                ? budgetsApi.clearCategory(periodId, category.categoryId)
-                : budgetsApi.setCategory(periodId, category.categoryId, amount),
-            )
-          }
-        />
-      </div>
+    <div className="overflow-hidden rounded-xl border border-line bg-card shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full px-4 py-3 text-left transition-colors hover:bg-raised"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span
+              aria-hidden="true"
+              className={`shrink-0 text-xs text-ink-muted transition-transform ${open ? 'rotate-90' : ''}`}
+            >
+              ▶
+            </span>
+            <span className="truncate font-medium text-ink">{category.categoryName}</span>
+          </span>
+          <span className="shrink-0 text-sm font-medium tabular-nums text-ink">
+            {category.amount === null ? (
+              <span className="font-normal text-ink-muted">Not budgeted</span>
+            ) : (
+              money.format(category.amount)
+            )}
+          </span>
+        </div>
 
-      {category.amount !== null && (
-        <>
-          <div className="mt-3">
-            <div className="h-2 overflow-hidden rounded-full bg-track">
-              <div
-                className={`h-full transition-all ${overAllocated ? 'bg-negative-500' : 'bg-brand-500'}`}
-                style={{
-                  width: `${Math.min(100, category.amount > 0 ? (category.allocatedToHeads / category.amount) * 100 : 0)}%`,
-                }}
-              />
-            </div>
-            <p className={`mt-1 text-xs ${overAllocated ? 'text-negative-600 dark:text-negative-400' : 'text-ink-muted'}`}>
-              {money.format(category.allocatedToHeads)} of {money.format(category.amount)} allocated ·{' '}
-              {money.format(category.unallocated ?? 0)} left for heads
-            </p>
-          </div>
+        {!open && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
+            <span>
+              {budgetedHeads} of {headCount} {headCount === 1 ? 'head' : 'heads'} budgeted
+            </span>
+            <TargetNote category={category} compact />
+          </p>
+        )}
+      </button>
 
-          <ul className="mt-3 flex flex-col gap-2 border-t border-line-soft pt-3">
+      {open && (
+        <div className="border-t border-line-soft px-4 py-3">
+          <ul className="flex flex-col gap-2">
             {category.heads.map((head) => (
               <li key={head.headId} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-ink-soft">{head.headName}</span>
+                <span className="truncate text-sm text-ink-soft">{head.headName}</span>
                 <AmountInput
                   value={head.amount}
-                  placeholder="—" onCommit={(amount) =>
+                  placeholder="—"
+                  onCommit={(amount) =>
                     mutation.mutate(() =>
                       amount === null
                         ? budgetsApi.clearHead(periodId, head.headId)
@@ -140,15 +162,77 @@ function CategoryBudgetCard({ periodId, category }: { periodId: string; category
                 />
               </li>
             ))}
-            {category.heads.length === 0 && (
+            {headCount === 0 && (
               <li className="text-xs text-ink-muted">No heads in this category yet.</li>
             )}
           </ul>
-        </>
-      )}
 
-      {error && <p className="mt-2 text-sm text-negative-600 dark:text-negative-400">{error}</p>}
+          {budgetedHeads > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-sm">
+              <span className="text-ink-soft">Heads total</span>
+              <span className="w-28 pr-2 text-right font-medium tabular-nums text-ink">
+                {money.format(category.allocatedToHeads)}
+              </span>
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-line-soft pt-3">
+            <span className="min-w-0">
+              <span className="block text-sm text-ink-soft">Target</span>
+              <span className="block text-xs text-ink-muted">
+                Optional — what you meant to spend here
+              </span>
+            </span>
+            <AmountInput
+              value={category.target}
+              placeholder="—"
+              onCommit={(amount) =>
+                mutation.mutate(() =>
+                  amount === null
+                    ? budgetsApi.clearCategory(periodId, category.categoryId)
+                    : budgetsApi.setCategory(periodId, category.categoryId, amount),
+                )
+              }
+            />
+          </div>
+
+          <TargetNote category={category} />
+
+          {error && <p className="mt-2 text-sm text-negative-600 dark:text-negative-400">{error}</p>}
+        </div>
+      )}
     </div>
+  )
+}
+
+/**
+ * How the heads compare with the target. Nothing to say unless both exist — a target on
+ * its own is simply the budget, and heads on their own are answerable to nothing.
+ */
+function TargetNote({ category, compact }: { category: CategoryBudget; compact?: boolean }) {
+  const money = useMoney()
+  const difference = category.difference
+
+  if (difference === null || category.target === null) return null
+
+  const className = compact ? 'text-xs' : 'mt-2 block text-xs'
+
+  if (difference === 0) {
+    return (
+      <span className={`${className} text-positive-700 dark:text-positive-400`}>
+        Matches your {money.format(category.target)} target.
+      </span>
+    )
+  }
+
+  const over = difference > 0
+  return (
+    <span className={`${className} ${over ? 'text-ink-soft' : 'text-ink-soft'}`}>
+      <strong className={`font-medium ${over ? 'text-negative-600 dark:text-negative-400' : 'text-brand-700 dark:text-brand-300'}`}>
+        {money.format(Math.abs(difference))} {over ? 'extra' : 'short'}
+      </strong>{' '}
+      {over ? 'over' : 'of'} your {money.format(category.target)} target
+    </span>
   )
 }
 
@@ -169,6 +253,7 @@ function AmountInput({
       inputMode="decimal" value={shown}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
       onBlur={() => {
         if (draft === null) return
         const trimmed = draft.trim()
@@ -180,7 +265,7 @@ function AmountInput({
         const parsed = Number(trimmed)
         if (!Number.isNaN(parsed) && parsed !== value) onCommit(parsed)
       }}
-      className="w-28 rounded border border-line px-2 py-1.5 text-right text-sm"
+      className="w-28 shrink-0 rounded border border-line px-2 py-1.5 text-right text-sm"
     />
   )
 }

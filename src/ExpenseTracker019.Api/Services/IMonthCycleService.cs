@@ -6,7 +6,7 @@ namespace ExpenseTracker019.Api.Services;
 public interface IMonthCycleService
 {
     Task<MonthCycleDto> GetAsync(Guid userId);
-    Task<MonthCycleDto> UpdateAsync(Guid userId, int startDay);
+    Task<MonthCycleDto> UpdateAsync(Guid userId, PeriodKind kind, int startDay, DayOfWeek weekStartsOn);
 
     /// <summary>Resolves (creating if needed) the BudgetPeriod containing the given date.</summary>
     Task<BudgetPeriod> ResolvePeriodContainingAsync(Guid userId, DateOnly date);

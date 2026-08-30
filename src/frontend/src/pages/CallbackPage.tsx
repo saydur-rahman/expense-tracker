@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { userManager } from '../auth/oidc'
+import { userManager, safeReturnPath } from '../auth/oidc'
 
 /** Where Auth019 redirects back to after sign-in; redeems the code for tokens. */
 export default function CallbackPage() {
@@ -10,7 +10,8 @@ export default function CallbackPage() {
   useEffect(() => {
     userManager
       .signinRedirectCallback()
-      .then(() => navigate('/', { replace: true }))
+      // `state` is the route they were heading for before sign-in interrupted them.
+      .then((signedIn) => navigate(safeReturnPath(signedIn.state), { replace: true }))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Sign-in failed.'))
   }, [navigate])
 

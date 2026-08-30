@@ -16,6 +16,13 @@ public class ProfileDto
 
     /// <summary>ISO 4217, derived from the country. Null when no country is set.</summary>
     public string? CurrencyCode { get; set; }
+
+    /// <summary>
+    /// False for an account that only ever signed in through an external provider.
+    /// The profile screen hides the password card entirely for those users — their
+    /// credential lives at Google, and there is nothing here to change.
+    /// </summary>
+    public bool HasPassword { get; set; }
 }
 
 public class UpdateProfileRequest
@@ -30,6 +37,19 @@ public class UpdateProfileRequest
 
     [Required(ErrorMessage = "Select your country.")]
     public string Country { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// A password change made from inside a live session. The session itself is the
+/// proof of identity — see <see cref="Controllers.ProfileController.ChangePassword"/>.
+/// Validated in the controller rather than by attributes so each failure carries a
+/// message worth showing the user.
+/// </summary>
+public class ChangePasswordRequest
+{
+    public string NewPassword { get; set; } = string.Empty;
+
+    public string ConfirmPassword { get; set; } = string.Empty;
 }
 
 public class CountryOptionDto

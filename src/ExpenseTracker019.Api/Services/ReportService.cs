@@ -121,7 +121,14 @@ public class ReportService : IReportService
                 .Where(h => !h.IsArchived || h.Spent > 0 || h.Budget is not null)
                 .ToList();
 
-            var categoryBudget = categoryBudgets.TryGetValue(category.Id, out var cb) ? cb : (decimal?)null;
+            // Heads are authoritative: once any head in the category carries a budget, the
+            // category's budget is what they add up to. The figure stored against the category
+            // is only a target, and stands in solely when no head has been budgeted at all.
+            var target = categoryBudgets.TryGetValue(category.Id, out var cb) ? cb : (decimal?)null;
+            var categoryBudget = heads.Any(h => h.Budget is not null)
+                ? heads.Sum(h => h.Budget ?? 0m)
+                : target;
+
             var categoryAmount = heads.Sum(h => h.Spent);
 
             var isRelevant = !category.IsArchived || categoryAmount > 0 || categoryBudget is not null;

@@ -41,11 +41,21 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 
    **Auth019's tables live in the `auth` schema**, the expense API's in `dbo`, each with its own migration-history table. That is what lets the two share a single database in hosting that only offers one for free — they still share no tables. Don't remove the schema or the `MigrationsHistoryTable` call: the two services would then overwrite each other's migration history. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
-2. **A category's head budgets can never exceed the category's own budget** for that period. Lives in `BudgetService`, transactionally. Not a DB constraint (cross-row SUM). A category budget must exist before any head budget; clearing a category's budget for a month clears its heads' budgets too.
+2. **Heads are authoritative: a category's budget is what its heads add up to.** Once any head in a category carries a budget, the category's budget *is* their total — in `BudgetService` for the editor and in `ReportService` for the dashboard. Both must agree; if you change the rule, change it in both.
+
+   The figure stored on the category is only a **target**. It never caps the heads, it is never required before them, and it stands in as the budget solely when **no** head has been budgeted at all. Heads over or under the target are reported back as "X extra" / "X short" — never refused. Clearing the target leaves the head budgets alone.
+
+   *(This replaces the original rule, where the category budget was a hard ceiling that had to exist first and whose clearing wiped its heads. Nothing enforces a ceiling any more — don't reintroduce one without being asked.)*
+
+   Carry-forward copies head budgets **independently** of category targets, or a user who only ever fills in heads loses their whole budget at the turn of the period.
 
 3. **Categories and Heads are never hard-deleted.** `IsArchived` + EF global query filters. Their past expenses and budgets must stay visible in history and reports — which is why those queries call `IgnoreQueryFilters()`. **If you add a history or report query, it needs that too**, or archived data silently vanishes from the views meant to preserve it.
 
-4. **A month's boundaries are always computed from the user's current cycle start day.** `MonthCycleMath` does the arithmetic (unit-tested — extend those tests if you touch it); `BudgetPeriod` rows exist only as a stable anchor for budgets to hang off, keyed by start date, and **never override the calculation**. Changing the start day re-cuts the current month immediately. A row cut under an older setting that shares a start date is realigned to the new end date. *(This reverses the earlier "an existing period covering a date always wins" rule, which meant a cycle change silently did nothing until the next month.)*
+4. **A period's boundaries are always computed from the user's current cycle setting.** A user budgets **monthly** (from a day of the month) or **weekly** (from a day of the week) — one rhythm at a time, `PeriodKind` on the setting row. `MonthCycleMath` does the arithmetic for both (unit-tested — extend those tests if you touch it); `BudgetPeriod` rows exist only as a stable anchor for budgets to hang off and **never override the calculation**. Changing the setting re-cuts the current period immediately. A row cut under an older setting that shares a start date is realigned to the new end date. *(This reverses the earlier "an existing period covering a date always wins" rule, which meant a cycle change silently did nothing until the next month.)*
+
+   **`Kind` is part of a period's identity, not decoration.** The unique index is `(UserId, Kind, StartDate)`, and every period lookup filters on it — a week and a month can legitimately start on the same day, and without the filter the realign above rewrites one into the other and strands its budgets. Carry-forward filters on it too: a month's figure landing in a week is an amount the user never chose, so a freshly switched rhythm starts empty.
+
+   **Enum columns with `HasDefaultValue` need `ValueGeneratedNever()`.** EF treats a store-default property as store-generated and sends `DEFAULT` for any value equal to the CLR default — so a user picking `DayOfWeek.Sunday` (0) was silently given the column's default of Monday. This only shows up against a real database, never in a build.
 
    **A new month inherits the previous month's budgets.** Seeding runs backwards-only, never over a period that already has budgets, and **at most once per period** — `BudgetsInitialized` is set both when a period is seeded and by every budget write, so a month the user emptied on purpose stays empty. If you add a budget write path, set that flag.
 
@@ -75,6 +85,7 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 - **Mobile-first CSS**: base styles narrow, `md:`/`lg:` on top.
 - **Money** is `decimal(18,2)`, configured explicitly.
 - **Package versions** are centralized in `Directory.Packages.props`; don't put `Version=` in a csproj.
+- **The help page is part of the feature.** `src/frontend/src/pages/HelpPage.tsx` is the app's user-facing documentation. Any change that alters what a user sees or does — a new screen, a renamed control, a rule that behaves differently, an option that appears or disappears — **updates that page in the same change**, in the user's words rather than the code's. Use the `help-page` skill. A change that touches no user-visible behaviour (a refactor, a migration, a test) needs nothing.
 - Match surrounding style. Comments explain *why*, not *what*.
 
 ---

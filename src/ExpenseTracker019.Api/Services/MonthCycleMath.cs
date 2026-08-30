@@ -1,8 +1,9 @@
 namespace ExpenseTracker019.Api.Services;
 
 /// <summary>
-/// Pure date math for resolving a user's custom month cycle into concrete period boundaries.
-/// Kept free of EF/DB concerns so the edge cases (short-month roll-over, year wrap) are unit-testable.
+/// Pure date math for resolving a user's budgeting cycle — monthly or weekly — into concrete
+/// period boundaries. Kept free of EF/DB concerns so the edge cases (short-month roll-over,
+/// year wrap, week alignment) are unit-testable.
 /// </summary>
 public static class MonthCycleMath
 {
@@ -51,6 +52,26 @@ public static class MonthCycleMath
         return ResolvePeriodContaining(shiftedStart, startDay);
     }
 
+    /// <summary>
+    /// The week (start, end inclusive) containing <paramref name="date"/> for a user whose
+    /// week begins on <paramref name="weekStartsOn"/>. Always exactly seven days — unlike the
+    /// month cycle there is nothing to clamp.
+    /// </summary>
+    public static (DateOnly Start, DateOnly End) ResolveWeekContaining(DateOnly date, DayOfWeek weekStartsOn)
+    {
+        // How far back the chosen start-of-week is from this date, wrapped into 0..6.
+        var daysSinceStart = ((int)date.DayOfWeek - (int)weekStartsOn + 7) % 7;
+        var start = date.AddDays(-daysSinceStart);
+        return (start, start.AddDays(6));
+    }
+
+    /// <summary>Shifts a week by <paramref name="offset"/> whole weeks (negative = earlier).</summary>
+    public static (DateOnly Start, DateOnly End) ShiftWeek(DateOnly start, int offset)
+    {
+        var shifted = start.AddDays(7 * offset);
+        return (shifted, shifted.AddDays(6));
+    }
+
     public static string BuildLabel(DateOnly start, DateOnly end)
     {
         if (start.Day == 1)
@@ -61,5 +82,21 @@ public static class MonthCycleMath
         return start.Year == end.Year
             ? $"{start:d MMM} – {end:d MMM yyyy}"
             : $"{start:d MMM yyyy} – {end:d MMM yyyy}";
+    }
+
+    /// <summary>
+    /// A week's label. Deliberately separate from <see cref="BuildLabel"/>: that one shortens a
+    /// period starting on the 1st to just "Sep 2026", which for a week would name the wrong span.
+    /// </summary>
+    public static string BuildWeekLabel(DateOnly start, DateOnly end)
+    {
+        if (start.Year != end.Year)
+        {
+            return $"{start:d MMM yyyy} – {end:d MMM yyyy}";
+        }
+
+        return start.Month != end.Month
+            ? $"{start:d MMM} – {end:d MMM yyyy}"
+            : $"{start.Day}–{end:d MMM yyyy}";
     }
 }
