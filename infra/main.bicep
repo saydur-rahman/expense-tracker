@@ -65,6 +65,25 @@ param openIddictCertificateBase64 string = ''
 @secure()
 param openIddictCertificatePassword string = ''
 
+@description('''
+Custom domain for the SPA, e.g. app.microapps019.com. Leave empty to stay on the
+generated *.azurestaticapps.net hostname.
+
+The DNS record must already exist and resolve before you deploy with this set —
+Azure validates ownership during creation and the deployment fails otherwise.
+''')
+param customDomain string = ''
+
+@description('''
+How Azure proves you own the domain. `cname-delegation` for a subdomain already
+pointed at the site by CNAME; `dns-txt-token` for an apex domain.
+''')
+@allowed([
+  'cname-delegation'
+  'dns-txt-token'
+])
+param customDomainValidation string = 'cname-delegation'
+
 @description('What the free SQL database should do once the monthly grant is used up.')
 @allowed([
   'AutoPause'
@@ -159,7 +178,20 @@ resource staticSite 'Microsoft.Web/staticSites@2023-12-01' = {
   }
 }
 
-var spaOrigin = 'https://${staticSite.properties.defaultHostname}'
+// Everything downstream hangs off this: Auth019's CORS, its Spa__Origin, and the
+// redirect URIs AuthSeeder registers for the SPA client. Point it at the custom
+// domain or sign-in breaks — the app would load, then be refused on the way back.
+var spaOrigin = empty(customDomain)
+  ? 'https://${staticSite.properties.defaultHostname}'
+  : 'https://${customDomain}'
+resource staticSiteCustomDomain 'Microsoft.Web/staticSites/customDomains@2023-12-01' = if (!empty(customDomain)) {
+  parent: staticSite
+  name: customDomain
+  properties: {
+    validationMethod: customDomainValidation
+  }
+}
+
 var authUrl = 'https://${authAppName}.azurewebsites.net'
 var apiUrl = 'https://${apiAppName}.azurewebsites.net'
 
@@ -215,6 +247,7 @@ resource apiApp 'Microsoft.Web/sites@2023-12-01' = {
 output authUrl string = authUrl
 output apiUrl string = apiUrl
 output spaUrl string = spaOrigin
+output staticSiteDefaultHostname string = staticSite.properties.defaultHostname
 output authAppName string = authApp.name
 output apiAppName string = apiApp.name
 output staticSiteName string = staticSite.name
