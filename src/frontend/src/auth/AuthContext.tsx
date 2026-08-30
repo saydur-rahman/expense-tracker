@@ -28,6 +28,8 @@ export interface CurrentUser {
 interface AuthContextValue {
   user: CurrentUser | null
   isLoading: boolean
+  /** True from the moment sign-out starts until the browser leaves the page. */
+  isSigningOut: boolean
   isAdmin: boolean
   isImpersonating: boolean
   login: () => Promise<void>
@@ -69,6 +71,7 @@ function readUser(accessToken: string): CurrentUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const applyOidcUser = useCallback((oidcUser: User | null) => {
     if (!oidcUser?.access_token) {
@@ -126,9 +129,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(() => userManager.signinRedirect(), [])
 
   const logout = useCallback(async () => {
+    // signoutRedirect() removes the stored user BEFORE it navigates, which fires
+    // userUnloaded and empties this context. Without this flag, ProtectedRoute sees
+    // a null user and starts a fresh sign-in — and that navigation wins the race,
+    // going to /connect/authorize while the cookie is still valid and landing the
+    // user straight back on the dashboard. Signing out appeared to do nothing.
+    setIsSigningOut(true)
     clearImpersonationToken()
     sessionStorage.removeItem('admin.session')
-    await userManager.signoutRedirect()
+
+    try {
+      await userManager.signoutRedirect()
+    } catch {
+      // Never strand someone on a page that will bounce them back in.
+      setIsSigningOut(false)
+      window.location.assign('/signed-out')
+    }
   }, [])
 
   const startImpersonation = useCallback((accessToken: string) => {
@@ -153,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isLoading,
+      isSigningOut,
       isAdmin: user?.roles.includes('Admin') ?? false,
       isImpersonating: user?.isImpersonating ?? false,
       login,
@@ -160,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       startImpersonation,
       exitImpersonation,
     }),
-    [user, isLoading, login, logout, startImpersonation, exitImpersonation],
+    [user, isLoading, isSigningOut, login, logout, startImpersonation, exitImpersonation],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
