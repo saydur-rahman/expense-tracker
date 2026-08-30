@@ -66,6 +66,20 @@ param openIddictCertificateBase64 string = ''
 param openIddictCertificatePassword string = ''
 
 @description('''
+Google OAuth client id and secret. Leave both empty to omit Google sign-in — the
+login page hides the button unless both are present.
+
+Supply these on every deployment. App Service replaces the whole app-settings
+collection, so deploying with them empty REMOVES a previously configured client
+and silently drops the Google button.
+''')
+param googleClientId string = ''
+
+@description('Secret for the Google OAuth client above.')
+@secure()
+param googleClientSecret string = ''
+
+@description('''
 Custom domain for the SPA, e.g. app.microapps019.com. Leave empty to stay on the
 generated *.azurestaticapps.net hostname.
 
@@ -218,6 +232,8 @@ resource authApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'AdminSeed__Password', value: adminSeedPassword }
         { name: 'OpenIddict__SigningCertificateBase64', value: openIddictCertificateBase64 }
         { name: 'OpenIddict__SigningCertificatePassword', value: openIddictCertificatePassword }
+        { name: 'Google__ClientId', value: googleClientId }
+        { name: 'Google__ClientSecret', value: googleClientSecret }
       ]
     }
   }

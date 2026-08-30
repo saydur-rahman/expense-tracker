@@ -91,6 +91,9 @@ jobs:
             adminSeedPassword=${{ secrets.ADMIN_SEED_PASSWORD }}
             openIddictCertificateBase64=${{ secrets.OPENIDDICT_CERT_BASE64 }}
             openIddictCertificatePassword=${{ secrets.OPENIDDICT_CERT_PASSWORD }}
+            googleClientId=${{ secrets.GOOGLE_CLIENT_ID }}
+            googleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            customDomain=${{ vars.CUSTOM_DOMAIN }}
           failOnStdErr: false
 
       - name: Publish Auth019
