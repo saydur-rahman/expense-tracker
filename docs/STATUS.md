@@ -136,6 +136,21 @@ All of the following were exercised against **live running services**, not just 
 - Verified against live services (20 checks) with the cycle deliberately set so **the month and the week start on the same day**: both resolve as separate rows with their own labels, the first week is unbudgeted, the next week inherits the weekly figure and not the monthly one, and switching back finds the same month row with its end date and its budgets intact
 - Seen in a browser: the Monthly/Weekly toggle, the day grid, the day-of-week list, and the warning shown only when the rhythm is actually being changed
 
+**Heads drive the budget; the category figure is only a target (changed 2026-08-30)**
+- **This replaces the original budget rule.** There is no ceiling any more. Put a figure on a head and it is accepted — no category budget needed first, and nothing caps it. A category's budget *is* what its heads add up to
+- The figure stored on the category is a **target**: what you meant to spend. It never limits the heads and stands in as the budget only when **no** head is budgeted at all. Heads over or under it are reported as "200 extra" / "150 short", never refused
+- Clearing the target no longer wipes the head budgets with it — that behaviour only made sense while heads lived inside the category's bounds
+- The same rule had to land in **two** places: `BudgetService` for the editor and `ReportService` for the dashboard. They must agree; if the rule changes, change both
+- Carry-forward now copies head budgets **independently** of category targets. Gated the old way, a user who only ever fills in heads would lose their entire budget at the turn of the period
+- `CategoryBudgetDto` gained `target` and `difference` and lost `unallocated`; `amount` now means *the budget in force* rather than *the category row*
+- **Existing data is unaffected in practice** — a category whose heads already sum to its budget reads identically. Where they don't, the category's budget now follows the heads
+- Verified against live services (27 checks): a head budgeted with no category budget at all; heads never capped; a target under, over and equal to the head total; the dashboard measuring 1100 spent against the 1200 head total rather than the 1000 target; clearing the target leaving both head budgets intact; a target alone still working as the budget; and head-only budgets carrying into the next period
+- Seen in a browser: heads directly editable, the heads total, the optional target, and the short/extra line
+
+**Budget cards collapse (added 2026-08-30)**
+- The Budgets screen's category cards now fold, matching the dashboard's, which already did. More than four and they start folded so the whole period fits on one screen; a search always opens its matches
+- Collapsed, a card still says what matters: how many of its heads are budgeted, and whether the total matches the target
+
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one

@@ -98,14 +98,20 @@ export default function HelpPage() {
         where={<Link className="underline hover:text-ink" to="/budgets">Budgets</Link>}
       >
         <p>
-          Set the <strong className="font-medium text-ink">category</strong> budget first —
-          it is the ceiling. Then split it across that category's heads however you like.
+          Put a figure on each <strong className="font-medium text-ink">head</strong> — that
+          is all you have to do. The category is simply what its heads add up to, so there is
+          no need to budget the category first, or at all.
         </p>
         <p>
-          The heads under a category can never add up to more than the category itself. If
-          you try, the app tells you exactly how much room is left rather than silently
-          rounding. Lowering a category below what its heads already claim is refused for
-          the same reason.
+          Each category also has an optional <strong className="font-medium text-ink">target</strong>:
+          what you meant to spend there. It doesn't limit anything. If your heads add up to
+          more or less than it, the card tells you by how much — "200 extra" or "150 short" —
+          and leaves the decision to you. Set a target on its own, with no head figures, and
+          it simply becomes the category's budget.
+        </p>
+        <p>
+          Tap a category to fold it away. With more than a handful they start folded, so the
+          whole period fits on one screen.
         </p>
         <p>
           <strong className="font-medium text-ink">You only need to do this once.</strong> A

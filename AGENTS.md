@@ -41,7 +41,13 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 
    **Auth019's tables live in the `auth` schema**, the expense API's in `dbo`, each with its own migration-history table. That is what lets the two share a single database in hosting that only offers one for free — they still share no tables. Don't remove the schema or the `MigrationsHistoryTable` call: the two services would then overwrite each other's migration history. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
-2. **A category's head budgets can never exceed the category's own budget** for that period. Lives in `BudgetService`, transactionally. Not a DB constraint (cross-row SUM). A category budget must exist before any head budget; clearing a category's budget for a month clears its heads' budgets too.
+2. **Heads are authoritative: a category's budget is what its heads add up to.** Once any head in a category carries a budget, the category's budget *is* their total — in `BudgetService` for the editor and in `ReportService` for the dashboard. Both must agree; if you change the rule, change it in both.
+
+   The figure stored on the category is only a **target**. It never caps the heads, it is never required before them, and it stands in as the budget solely when **no** head has been budgeted at all. Heads over or under the target are reported back as "X extra" / "X short" — never refused. Clearing the target leaves the head budgets alone.
+
+   *(This replaces the original rule, where the category budget was a hard ceiling that had to exist first and whose clearing wiped its heads. Nothing enforces a ceiling any more — don't reintroduce one without being asked.)*
+
+   Carry-forward copies head budgets **independently** of category targets, or a user who only ever fills in heads loses their whole budget at the turn of the period.
 
 3. **Categories and Heads are never hard-deleted.** `IsArchived` + EF global query filters. Their past expenses and budgets must stay visible in history and reports — which is why those queries call `IgnoreQueryFilters()`. **If you add a history or report query, it needs that too**, or archived data silently vanishes from the views meant to preserve it.
 

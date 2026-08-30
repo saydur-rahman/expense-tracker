@@ -13,13 +13,28 @@ public class CategoryBudgetDto
 {
     public Guid CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The budget actually in force: the head total once any head is budgeted, otherwise
+    /// <see cref="Target"/>. Heads are authoritative — a category is what its parts add up to.
+    /// </summary>
     public decimal? Amount { get; set; }
+
+    /// <summary>
+    /// The optional figure typed on the category itself. Purely a target to aim at: it never
+    /// caps the heads and never overrides their total.
+    /// </summary>
+    public decimal? Target { get; set; }
 
     /// <summary>Sum of this category's head budgets for the period.</summary>
     public decimal AllocatedToHeads { get; set; }
 
-    /// <summary>How much of the category budget is still unallocated to heads.</summary>
-    public decimal? Unallocated { get; set; }
+    /// <summary>
+    /// Head total minus target — positive is over the target, negative is under it. Null
+    /// unless both a target and at least one head budget exist, since otherwise there is
+    /// nothing to compare.
+    /// </summary>
+    public decimal? Difference { get; set; }
 
     public List<HeadBudgetDto> Heads { get; set; } = new();
 }

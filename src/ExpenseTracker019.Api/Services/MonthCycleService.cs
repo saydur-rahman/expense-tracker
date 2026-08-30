@@ -167,9 +167,14 @@ public class MonthCycleService : IMonthCycleService
             return;
         }
 
-        if (await _db.CategoryBudgets.AnyAsync(cb => cb.BudgetPeriodId == period.Id))
+        // Head budgets can stand alone now, so either kind of row counts as "already budgeted".
+        var alreadyBudgeted =
+            await _db.CategoryBudgets.AnyAsync(cb => cb.BudgetPeriodId == period.Id)
+            || await _db.HeadBudgets.AnyAsync(hb => hb.BudgetPeriodId == period.Id);
+
+        if (alreadyBudgeted)
         {
-            // Already budgeted — nothing to carry, and nothing should ever overwrite it.
+            // Nothing to carry, and nothing should ever overwrite it.
             period.BudgetsInitialized = true;
             await _db.SaveChangesAsync();
             return;
@@ -182,7 +187,7 @@ public class MonthCycleService : IMonthCycleService
             .Where(p => p.UserId == userId
                         && p.Kind == period.Kind
                         && p.StartDate < period.StartDate
-                        && p.CategoryBudgets.Any())
+                        && (p.CategoryBudgets.Any() || p.HeadBudgets.Any()))
             .OrderByDescending(p => p.StartDate)
             .FirstOrDefaultAsync();
 
@@ -204,25 +209,23 @@ public class MonthCycleService : IMonthCycleService
             .Where(cb => cb.BudgetPeriodId == source.Id && activeCategoryIds.Contains(cb.CategoryId))
             .ToListAsync();
 
-        if (categoryBudgets.Count == 0)
-        {
-            return;
-        }
-
-        // Head budgets ride along only under a category whose budget came across too.
-        // That is what keeps "a head budget needs a category budget" and "heads never
-        // exceed their category" true by construction: the pair held in the source
-        // month, and dropping an archived head only ever lowers the head total.
-        var copiedCategoryIds = categoryBudgets.Select(cb => cb.CategoryId).ToList();
-
-        var eligibleHeadIds = await _db.Heads
-            .Where(h => copiedCategoryIds.Contains(h.CategoryId))
+        // Head budgets carry independently of the category target: a user who only ever fills
+        // in heads has no category rows to gate them on, and gating would silently drop their
+        // whole budget on the turn of the period.
+        var activeHeadIds = await _db.Heads
+            .Where(h => activeCategoryIds.Contains(h.CategoryId))
             .Select(h => h.Id)
             .ToListAsync();
 
         var headBudgets = await _db.HeadBudgets
-            .Where(hb => hb.BudgetPeriodId == source.Id && eligibleHeadIds.Contains(hb.HeadId))
+            .Where(hb => hb.BudgetPeriodId == source.Id && activeHeadIds.Contains(hb.HeadId))
             .ToListAsync();
+
+        if (categoryBudgets.Count == 0 && headBudgets.Count == 0)
+        {
+            // Everything the source held belonged to categories since archived.
+            return;
+        }
 
         var now = DateTime.UtcNow;
 

@@ -172,15 +172,21 @@ Categories carry a `kind` of `Expense` or `Income` (serialised as a string). The
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/{periodId}/budgets` | Categories + heads with amounts and remaining allowance |
-| PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` |
-| DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears it **and its heads' budgets** for this period only |
-| PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; enforces the category ceiling |
+| GET | `/api/budget-periods/{periodId}/budgets` | Per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
+| PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` — sets the **target**; never caps the heads |
+| DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears the target only; **head budgets are left alone** |
+| PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; no category budget needed first, and nothing caps it |
 | DELETE | `/api/budget-periods/{periodId}/heads/{headId}/budget` | Clears this head's budget for this period |
 
 All four return the full updated period budget, so no follow-up fetch is needed.
 
-**Rejections to expect (400):** setting a head budget with no category budget; heads exceeding the category total (names the remaining allowance); lowering a category below its heads' sum (names the current total).
+**Heads are authoritative.** `amount` — the budget the dashboard measures spending against —
+is the head total once *any* head is budgeted, and falls back to `target` only when none is.
+`difference` is `allocatedToHeads − target`: positive means that much **extra** over the
+target, negative that much **short** of it, and null when there is nothing to compare.
+
+**Rejections to expect (400):** a negative amount. Nothing else — heads over or under the
+target are reported through `difference`, never refused.
 
 ### Expenses
 

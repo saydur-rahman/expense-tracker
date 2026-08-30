@@ -9,9 +9,13 @@ export interface HeadBudget {
 export interface CategoryBudget {
   categoryId: string
   categoryName: string
+  /** The budget in force: the head total once any head is budgeted, otherwise the target. */
   amount: number | null
+  /** Optional figure on the category itself. A target to aim at, never a cap. */
+  target: number | null
   allocatedToHeads: number
-  unallocated: number | null
+  /** Head total minus target: positive is extra, negative is short. Null if not comparable. */
+  difference: number | null
   heads: HeadBudget[]
 }
 
