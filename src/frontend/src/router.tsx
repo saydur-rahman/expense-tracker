@@ -3,6 +3,7 @@ import DashboardPage from './pages/DashboardPage'
 import CallbackPage from './pages/CallbackPage'
 import SilentRenewPage from './pages/SilentRenewPage'
 import SignedOutPage from './pages/SignedOutPage'
+import HelpPage from './pages/HelpPage'
 import ProtectedRoute from './auth/ProtectedRoute'
 import RequireMonthCycle from './auth/RequireMonthCycle'
 import AdminRoute from './auth/AdminRoute'
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
             element: <AppLayout />,
             children: [
               { path: '/', element: <DashboardPage /> },
+              { path: '/help', element: <HelpPage /> },
               { path: '/categories', element: <CategoriesPage /> },
               { path: '/budgets', element: <BudgetSetupPage /> },
               { path: '/expenses', element: <ExpensesPage /> },

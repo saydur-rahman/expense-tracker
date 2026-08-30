@@ -75,6 +75,7 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 - **Mobile-first CSS**: base styles narrow, `md:`/`lg:` on top.
 - **Money** is `decimal(18,2)`, configured explicitly.
 - **Package versions** are centralized in `Directory.Packages.props`; don't put `Version=` in a csproj.
+- **The help page is part of the feature.** `src/frontend/src/pages/HelpPage.tsx` is the app's user-facing documentation. Any change that alters what a user sees or does — a new screen, a renamed control, a rule that behaves differently, an option that appears or disappears — **updates that page in the same change**, in the user's words rather than the code's. Use the `help-page` skill. A change that touches no user-visible behaviour (a refactor, a migration, a test) needs nothing.
 - Match surrounding style. Comments explain *why*, not *what*.
 
 ---

@@ -12,7 +12,7 @@ The app was re-architected from a single API with embedded auth into **two indep
 
 Everything **builds, runs under Aspire, and has been verified end to end against live services** — including the full Authorization Code + PKCE flow, cross-service token validation, and every security boundary.
 
-The main caveat is unchanged: **the UI has never been opened in a browser.**
+The main caveat is nearly unchanged: **almost none of the UI has been opened in a browser.** The exceptions, as of 2026-08-30, are the dashboard, the settings/profile screen (including the new password card) and the new help page — see those entries below.
 
 ---
 
@@ -110,6 +110,14 @@ All of the following were exercised against **live running services**, not just 
 - Verified against live services (14 checks): a freshly registered email/password account reports `hasPassword: true`; a mismatch, a blank and a too-short password are each rejected with their own message; a valid change returns 204; **the old password then fails to sign in and the new one succeeds**; an account with no password reports `hasPassword: false` and is refused with 400, gaining none; an impersonated session is refused with 403 and the password is untouched afterwards
 - Changing the password moves the Identity security stamp, so the Auth019 **cookie** session dies within the 30-minute validation interval. The SPA keeps working — it renews on the refresh token, which OpenIddict does not stamp-check — but a fresh `authorize` asks for the new password. That is the wanted behaviour; don't "fix" it
 - The Google-only case is exercised by nulling `PasswordHash` on a freshly registered account — the same state an external sign-up lands in — because Google credentials have never been configured locally. The UI branch (card hidden) follows from the same `hasPassword` flag the endpoint checks
+
+**In-app Help page (added 2026-08-30)**
+- New `/help` (`pages/HelpPage.tsx`), reached from a **?** in the header — deliberately not in the nav, which already carries five or six items on a phone
+- Walks the app in the order someone meets it: month cycle → categories and heads → budgets → logging → dashboard, then the standing explanations (removing keeps history, currency, sign-in, password, feedback) and an **admin-only block** gated on `isAdmin`
+- Written in the user's words, not the codebase's — no entity names, endpoints or scopes. It leads on the rules people get wrong: heads can't exceed their category, budgets carry forward on their own, income takes no budget, removing keeps history
+- **This page is now part of every feature.** A change that alters what a user sees or does updates it in the same change — recorded as a convention in `AGENTS.md` and as the `help-page` skill, which carries the when/how and a table of what does and doesn't warrant an edit
+- **Read in a real browser** (first UI screen in this project to be): the page renders end to end at desktop width, the header **?** highlights as the active route, every internal link resolves, and the admin block correctly does **not** appear for a non-admin
+- Not yet seen: the **narrow/mobile** rendering (the extension's window resize reported success but never took effect — the page has no responsive branching of its own, so the risk is low) and the **admin block** rendered for an admin, which needs an admin sign-in
 
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
