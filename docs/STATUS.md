@@ -109,6 +109,15 @@ Three separate defects, found by reproducing the reported "it keeps coming back 
 - Verified against live services: the cookie is cleared, the next authorize demands a fresh login, the refresh token is rejected, `prompt=select_account` is sent, and `/signed-out` renders
 - **Note:** logout now revokes that user's tokens everywhere, so it signs them out on their other devices too
 
+**Feedback with admin triage (added 2026-08-30)**
+- Users send feedback from **Settings → Feedback** and see the whole conversation there; admins work it from **Admin → Feedback** with an Open / In progress / Resolved filter
+- A thread is a list of messages, opening message included, so one component renders it for both sides
+- Statuses: `Open` → `InProgress` (set automatically when an admin first replies) → `Resolved`. **Resolved closes it to everyone**, enforced in `FeedbackService` so neither controller can bypass it; an admin can reopen by setting the status back
+- Admin endpoints require the **Admin role**, which impersonation tokens never carry
+- The submitter's name and email are snapshotted onto the row — a deliberate denormalisation, since this service owns no user table and can't join across the service boundary
+- Verified against live services (24 checks): submit, list, ownership isolation (another user gets 404), non-admin gets 403, admin reply auto-advances the status, both sides' replies are rejected once resolved and the thread length is unchanged, reopening restores replies, and the status filter works
+- Regressions clean: income 23, carry-forward 15, month cycle 14, complete-profile 17, profile 21, unit tests 11
+
 **Month cycle now re-cuts on the spot (fixed 2026-08-30)**
 - Changing the cycle start day used to do nothing until the next month: resolution preferred any stored period already covering today. Boundaries are now always computed from the current setting, with the stored row used only as the budget anchor
 - Verified against live services (14 checks): 1st → 25th → 15th each re-cut the current month immediately; the dashboard summary follows; previous/next step by the new cycle; and going **back** to the original start day returns the original period row with its 9,000 budget intact

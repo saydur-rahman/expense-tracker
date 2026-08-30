@@ -47,6 +47,15 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(Claims.Private.Scope, AppScopes.ExpenseWrite);
     });
 
+    // Admin-only endpoints. An impersonation token carries no roles, so this also
+    // keeps an impersonated session out of everyone else's feedback.
+    options.AddPolicy(AuthPolicies.Admin, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim(Claims.Private.Scope, AppScopes.ExpenseRead);
+        policy.RequireClaim(Claims.Role, AppRoles.Admin);
+    });
+
     // Nothing here is anonymous; individual write actions opt up to ExpenseWrite.
     options.DefaultPolicy = options.GetPolicy(AuthPolicies.ExpenseRead)!;
 });
@@ -59,6 +68,7 @@ builder.Services.AddScoped<IBudgetService, BudgetService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<IIncomeService, IncomeService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 
 builder.Services.AddCors(options =>
 {

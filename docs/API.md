@@ -196,6 +196,30 @@ A mirror of expenses, against heads of `Income` categories. No budgets apply.
 
 Same list shape as expenses. Posting against a head on an **expense** category returns 400.
 
+### Feedback
+
+A user's own conversations with the admins. Scoped by the `sub` claim, so another user's id reads as 404 rather than leaking that it exists.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/feedback` | Your threads, newest activity first (no messages) |
+| GET | `/api/feedback/{id}` | One thread with its messages |
+| POST | `/api/feedback` | `{subject, message}` — opens a thread with the first message |
+| POST | `/api/feedback/{id}/replies` | `{body}`; **400 once resolved** |
+
+### Admin feedback
+
+Everyone's feedback. Requires the **Admin role** — the only place this service deliberately reads across users. An impersonation token carries no roles, so an impersonated session can't reach it.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/feedback?status=` | All threads; optional `Open` / `InProgress` / `Resolved`, plus open and in-progress counts |
+| GET | `/api/admin/feedback/{id}` | One thread |
+| POST | `/api/admin/feedback/{id}/replies` | `{body}`; an `Open` thread moves to `InProgress` automatically; **400 once resolved** |
+| PUT | `/api/admin/feedback/{id}/status` | `{status}` — setting `Resolved` closes it and stamps `resolvedAtUtc` |
+
+**Resolved means closed to everyone**, enforced in `FeedbackService` rather than either controller so neither side can post to a closed thread. An admin can reopen by setting the status back, which allows replies again.
+
 ### Reports
 
 | Method | Path | Notes |

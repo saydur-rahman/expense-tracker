@@ -13,7 +13,7 @@ const baseNavItems = [
 export default function AppLayout() {
   const { user, logout, isAdmin } = useAuth()
   const navItems = isAdmin
-    ? [...baseNavItems, { to: '/admin/users', label: 'Users', end: false }]
+    ? [...baseNavItems, { to: '/admin/users', label: 'Admin', end: false }]
     : baseNavItems
 
   return (

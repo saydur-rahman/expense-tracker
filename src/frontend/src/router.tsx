@@ -15,6 +15,8 @@ import BudgetSetupPage from './features/budgets/BudgetSetupPage'
 import ExpensesPage from './features/expenses/ExpensesPage'
 import IncomesPage from './features/incomes/IncomesPage'
 import AdminUsersPage from './features/admin/AdminUsersPage'
+import AdminFeedbackPage from './features/admin/AdminFeedbackPage'
+import FeedbackPage from './features/settings/FeedbackPage'
 
 export const router = createBrowserRouter([
   // Sign-in and registration live on Auth019, not here.
@@ -43,11 +45,15 @@ export const router = createBrowserRouter([
                   { path: 'profile', element: <ProfilePage /> },
                   // Kept at its original path so existing links still land here.
                   { path: 'month-cycle', element: <MonthCycleSettingsPage /> },
+                  { path: 'feedback', element: <FeedbackPage /> },
                 ],
               },
               {
                 element: <AdminRoute />,
-                children: [{ path: '/admin/users', element: <AdminUsersPage /> }],
+                children: [
+                  { path: '/admin/users', element: <AdminUsersPage /> },
+                  { path: '/admin/feedback', element: <AdminFeedbackPage /> },
+                ],
               },
             ],
           },

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { adminApi, type AdminUser } from '../../api/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { ApiError } from '../../api/client'
+import AdminTabs from './AdminTabs'
 
 export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
@@ -52,10 +53,13 @@ export default function AdminUsersPage() {
         </p>
       </div>
 
+      <AdminTabs />
+
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by email or name" className="rounded-lg border border-line px-3 py-2.5 text-base"
+        placeholder="Search by email or name"
+        className="w-full rounded-lg border border-line bg-input px-3 py-2.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-brand-500 focus:outline-none"
       />
 
       {error && <p className="text-sm text-negative-600 dark:text-negative-400">{error}</p>}

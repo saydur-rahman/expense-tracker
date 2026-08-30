@@ -22,6 +22,8 @@ public class AppDbContext : DbContext
     public DbSet<HeadBudget> HeadBudgets => Set<HeadBudget>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Income> Incomes => Set<Income>();
+    public DbSet<Feedback> Feedbacks => Set<Feedback>();
+    public DbSet<FeedbackMessage> FeedbackMessages => Set<FeedbackMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -89,6 +91,29 @@ public class AppDbContext : DbContext
                 .WithMany(h => h.HeadBudgets)
                 .HasForeignKey(x => x.HeadId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Feedback>(e =>
+        {
+            e.Property(x => x.Subject).HasMaxLength(200);
+            e.Property(x => x.SubmittedByName).HasMaxLength(200);
+            e.Property(x => x.SubmittedByEmail).HasMaxLength(320);
+            // Admins list by status and sort by activity; users list their own.
+            e.HasIndex(x => new { x.Status, x.UpdatedAtUtc });
+            e.HasIndex(x => x.UserId);
+        });
+
+        builder.Entity<FeedbackMessage>(e =>
+        {
+            e.Property(x => x.Body).HasMaxLength(4000);
+            e.Property(x => x.AuthorName).HasMaxLength(200);
+            e.HasIndex(x => new { x.FeedbackId, x.CreatedAtUtc });
+            // Deleting a conversation takes its messages with it — unlike categories
+            // and heads, a feedback thread has no history worth preserving alone.
+            e.HasOne(x => x.Feedback)
+                .WithMany(f => f.Messages)
+                .HasForeignKey(x => x.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Expense>(e =>
