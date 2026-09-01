@@ -31,10 +31,12 @@ public class MonthCycleService : IMonthCycleService
     }
 
     private readonly AppDbContext _db;
+    private readonly IUserClock _clock;
 
-    public MonthCycleService(AppDbContext db)
+    public MonthCycleService(AppDbContext db, IUserClock clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<MonthCycleDto> GetAsync(Guid userId)
@@ -119,8 +121,9 @@ public class MonthCycleService : IMonthCycleService
 
     public async Task<BudgetPeriod> ResolveRelativePeriodAsync(Guid userId, int offset)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var current = await ResolvePeriodContainingAsync(userId, today);
+        // The caller's today, not the server's: in New Zealand UTC is yesterday for most
+        // of the day, which showed last month's cycle every morning of the 1st.
+        var current = await ResolvePeriodContainingAsync(userId, _clock.Today);
 
         if (offset == 0)
         {
@@ -136,8 +139,7 @@ public class MonthCycleService : IMonthCycleService
     public async Task<IReadOnlyList<PeriodWindowDto>> ListRecentWindowsAsync(Guid userId, int max)
     {
         var cycle = await GetCurrentCycleAsync(userId);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var (currentStart, currentEnd) = cycle.Containing(today);
+        var (currentStart, currentEnd) = cycle.Containing(_clock.Today);
 
         // How far back there is anything to look at. Stored periods count too, so a month
         // that was budgeted but never spent in still appears.

@@ -9,10 +9,7 @@ import PeriodPicker from '../../components/PeriodPicker'
 import { budgetPeriodsApi } from '../../api/settings'
 import AmountField from '../../components/AmountField'
 import SearchableSelect, { type SelectOption } from '../../components/SearchableSelect'
-
-function today() {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayLocal } from '../../lib/dates'
 
 const PAGE_SIZE = 25
 
@@ -21,7 +18,7 @@ export default function ExpensesPage() {
   const money = useMoney()
   const [headId, setHeadId] = useState('')
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(today())
+  const [date, setDate] = useState(todayLocal())
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [filterHeadId, setFilterHeadId] = useState('')
