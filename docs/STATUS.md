@@ -252,7 +252,7 @@ Three separate defects, found by reproducing the reported "it keeps coming back 
 - **Azure allows one free SQL database per subscription**, so both services share it: Auth019 moved to the `auth` schema (migration `MoveAuthToOwnSchema`) with its own `auth.__EFMigrationsHistory`; the expense API keeps `dbo`. They still share no tables. Splitting later is a connection-string change, not a code change
 - Auth019 can now load its OpenIddict signing certificate from a **base64 PFX app setting** — free hosting has no certificate store. With none configured it falls back to ephemeral keys and warns loudly: tokens then die on every restart
 - Full setup — resource group, federated credentials, repo secrets, certificate generation — is in [DEPLOY.md](DEPLOY.md)
-- **Never deployed.** The template compiles and the workflow parses, but neither has been run against a real subscription
+- **Deployed and running.** First shipped 2026-08-30; ten successful runs of the workflow that day, the last of them merge #4. `AZURE_RESOURCE_GROUP`, `AZURE_NAME_PREFIX` and `CUSTOM_DOMAIN` are set as repo variables, and all ten secrets (federated Azure credentials, SQL and admin-seed passwords, the OpenIddict certificate, Google credentials) are configured against a `production` environment
 
 **Aspire orchestration**
 - All six resources reach Running: `sql`, `auth019db`, `expensedb`, `auth019`, `expenseapi`, `web`
@@ -276,8 +276,8 @@ Everything frontend-side is verified by TypeScript compilation, a clean producti
 ### 2. Google sign-in is unproven
 Auth019 wires Google as an Identity external provider and the login page shows the button when configured, but no real credentials were ever set, so the path has never executed. Set `Google:ClientId` and `Google:ClientSecret` in Auth019's user-secrets to enable it. Email/password is fully working and independent.
 
-### 3. Production OAuth signing keys are not set up
-Development uses OpenIddict's ephemeral dev certificates. Production reads `OpenIddict:SigningCertificateThumbprint` / `OpenIddict:EncryptionCertificateThumbprint` from configuration — **this path has never been run.** Needs real certificates before any deployment.
+### 3. Production OAuth signing keys — closed
+Development still uses OpenIddict's ephemeral dev certificates, but production now loads a real certificate from the `OPENIDDICT_CERT_BASE64` / `OPENIDDICT_CERT_PASSWORD` secrets, and has done since the first deploy on 2026-08-30. What is *not* recorded anywhere is the certificate's expiry — worth checking, because tokens die when it lapses.
 
 ### 4. Mobile polish pass not done
 Layouts are mobile-first with a bottom tab bar, but no dedicated pass happened. Loading and error states are minimal.
@@ -285,8 +285,8 @@ Layouts are mobile-first with a bottom tab bar, but no dedicated pass happened. 
 ### 5. Test coverage is narrow
 Only `MonthCycleMath` has unit tests. The budget constraint and the impersonation/scope rules are verified by scripted live calls, not automated tests. Closing that gap is the highest-value testing work: `BudgetService` is pure service logic and easy to test.
 
-### 6. Nothing has actually been deployed
-`infra/main.bicep` compiles and `deploy.yml` parses, but no subscription has run either. Expect the first deploy to surface something — the likeliest candidates are `.NET 10` not yet being available on App Service in your region (fall back to a self-contained publish, noted in DEPLOY.md) and the federated-credential subject not matching. The free SQL database also has to be the *only* free one in the subscription.
+### 6. Deployment — closed
+Shipped on 2026-08-30 and green every run since. Merging to `main` is what deploys; nothing else does. **These gap notes had said "never deployed" for three days after it had been — check the workflow run list before trusting this section again.**
 
 ### 7. Mobile number and country are collected but never shown
 Registration stores both, but nothing surfaces them afterwards — `AdminUserDto` doesn't carry them, there's no profile screen, and no one can correct a typo in their own number. Neither field is validated beyond shape: the mobile is not uniqueness-checked and not verified by SMS.
@@ -302,7 +302,7 @@ No seeding command exists yet; test data means clicking through the UI or callin
 2. **Add unit tests for `BudgetService`** covering the constraint edge cases (gap 5).
 3. **Mobile polish pass** (gap 4).
 4. **Wire up Google sign-in** when you have credentials (gap 2).
-5. **Deployment**: the chosen path is container hosting (Azure Container Apps, or docker-compose on a VPS) — Aspire publishes the manifests. Before that: real signing certificates (gap 3), production connection strings, `Spa:Origin`/CORS set to the real frontend URL, and the SPA client's redirect URIs updated in `AuthSeeder`.
+5. ~~Deployment~~ — done. It ships to Azure App Service + Static Web Apps on merge to `main`, not the container hosting this line used to propose. See [DEPLOY.md](DEPLOY.md).
 
 ---
 
