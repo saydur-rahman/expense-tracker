@@ -1,4 +1,5 @@
 import { userManager, getImpersonationToken } from '../auth/oidc'
+import { userTimeZone } from '../lib/dates'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
@@ -33,6 +34,9 @@ async function request<T>(baseUrl: string, path: string, init?: RequestInit): Pr
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      // Sent on every request so the server can work out the caller's "today". Doing it
+      // here rather than per-endpoint means a new endpoint cannot forget to ask.
+      'X-Time-Zone': userTimeZone(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },

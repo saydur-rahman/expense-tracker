@@ -62,6 +62,7 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
+builder.Services.AddScoped<IUserClock, UserClock>();
 builder.Services.AddScoped<IMonthCycleService, MonthCycleService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IBudgetService, BudgetService>();

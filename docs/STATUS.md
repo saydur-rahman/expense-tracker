@@ -1,6 +1,6 @@
 # Project Status
 
-**Last updated:** 2026-09-01
+**Last updated:** 2026-09-02
 
 Read this first when picking the project back up. It records what is actually built and verified, what is not, and what to do next.
 
@@ -60,6 +60,17 @@ All of the following were exercised against **live running services**, not just 
 - Dashboard rollup arithmetic exact, over-budget flags correct
 - Soft delete: archived head disappears from active lists but its spend stays in history **and** reports; new expenses against it are rejected
 - 11 unit tests pass (month-cycle date math)
+
+**Dates follow the user's clock, not the server's (fixed 2026-09-02)**
+- Reported from New Zealand: "it keeps showing server time so I have to select everything manually". Two separate faults, both from treating UTC as a date
+- **The form defaults were UTC.** `new Date().toISOString().slice(0, 10)` converts to UTC first, so at UTC+12/+13 every Expense and Income form opened pre-filled with **yesterday** for the whole working day, and had to be corrected by hand every time. Now `todayLocal()` in `lib/dates`, which reads the browser's own calendar
+- **The server decided "today" from `DateTime.UtcNow`.** That is what resolves the current cycle, so on the 1st of a month a New Zealand user was shown **the previous month's** dashboard until about 1pm. New `IUserClock`, and the two sites in `MonthCycleService` now ask it
+- **The zone travels as a header.** `api/client.ts` puts the browser's IANA zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) on **every** request as `X-Time-Zone`, so a new endpoint needing a date cannot forget to ask. Chosen over a stored profile field (no migration, nothing else to keep right) and over deriving it from `Country` (exact for New Zealand, a guess for the US or Russia). CORS already allowed any header
+- **Anything missing or unrecognised falls back to UTC** — the behaviour we already had. A stale or spoofed header must never be a 500, and the value only affects which of the user's own periods is resolved
+- IANA ids resolve on Windows as well as Linux, so the dev machine and the Linux App Service agree
+- **Unit tests 27 → 43.** The New Zealand case is pinned exactly: 1 Sep 21:00 UTC is 2 Sep in Auckland, and 31 Aug 20:00 UTC is already 1 Sep — the month-boundary bug. Also daylight saving (Auckland is +12 in July, +13 in January, so a stored offset would be wrong half the year), a zone *behind* UTC, and every bad-header fallback
+- Timestamps are untouched: `CreatedAtUtc` and friends stay `DateTime.UtcNow`. Recorded as a convention in `AGENTS.md`
+- **Not yet confirmed in a browser** at the time of writing
 
 **Registration form (added 2026-08-29)**
 - Collects **mobile number**, **country**, and a **retyped password** alongside name and email
