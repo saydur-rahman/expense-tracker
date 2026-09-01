@@ -7,15 +7,10 @@ import PeriodPicker from '../components/PeriodPicker'
 import PeriodOverview from '../components/PeriodOverview'
 import { budgetPeriodsApi } from '../api/settings'
 import { useMoney } from '../lib/money'
-
-// The app's three colours, used here as chart marks. Validated against both card
-// card surfaces (#f8fafc light, #141d2e dark) for lightness band, chroma, colour-blind separation
-// and 3:1 contrast — so one pair serves both themes.
-// Green is consistently "money you still have", blue "money that has gone out",
-// red "trouble".
-const SPENT_COLOR = '#2563eb'
-const LEFT_COLOR = '#16a34a'
-const OVER_COLOR = '#dc2626'
+import TwoSliceDonut from '../components/charts/TwoSliceDonut'
+import LegendRow from '../components/charts/LegendRow'
+import ProgressBar from '../components/charts/ProgressBar'
+import { LEFT_COLOR, OVER_COLOR, SPENT_COLOR } from '../components/charts/colors'
 
 export default function DashboardPage() {
   const [ledger, setLedger] = useState<CategoryKind>('Expense')
@@ -197,114 +192,6 @@ function TotalBar({ spent, budget }: { spent: number; budget: number }) {
   )
 }
 
-interface Slice {
-  label: string
-  value: number
-  color: string
-}
-
-/**
- * A thin two-slice ring with an open centre — the figures live in the legend
- * beside it, so nothing has to be crammed into the hole.
- */
-function TwoSliceDonut({ first, second }: { first: Slice; second: Slice }) {
-  const { format } = useMoney()
-
-  const size = 108
-  const radius = 46
-  const stroke = 10
-  const middle = size / 2
-  const circumference = 2 * Math.PI * radius
-
-  const total = first.value + second.value
-  const firstFraction = total > 0 ? first.value / total : 0
-
-  // Only split the ring when both slices exist; a lone full ring shouldn't
-  // carry a phantom gap.
-  const split = first.value > 0 && second.value > 0
-  const gap = split ? 2 : 0
-
-  const firstLength = Math.max(0, firstFraction * circumference - gap)
-  const secondLength = Math.max(0, (1 - firstFraction) * circumference - gap)
-
-  const label = `${first.label} ${format(first.value)}, ${second.label} ${format(second.value)}.`
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      role="img" aria-label={label}
-      className="shrink-0"
-    >
-      <g transform={`rotate(-90 ${middle} ${middle})`} fill="none" strokeWidth={stroke}>
-        {firstLength > 0 && (
-          <circle
-            cx={middle}
-            cy={middle}
-            r={radius}
-            stroke={first.color}
-            strokeDasharray={`${firstLength} ${circumference - firstLength}`}
-            strokeDashoffset={-gap / 2}
-          >
-            <title>{`${first.label} ${format(first.value)}`}</title>
-          </circle>
-        )}
-        {secondLength > 0 && (
-          <circle
-            cx={middle}
-            cy={middle}
-            r={radius}
-            stroke={second.color}
-            strokeDasharray={`${secondLength} ${circumference - secondLength}`}
-            strokeDashoffset={-(firstFraction * circumference + gap / 2)}
-          >
-            <title>{`${second.label} ${format(second.value)}`}</title>
-          </circle>
-        )}
-      </g>
-    </svg>
-  )
-}
-
-function LegendRow({
-  swatch,
-  label,
-  value,
-  emphasis,
-}: {
-  /** Omitted for a row that is the ring's total rather than one of its slices. */
-  swatch?: string
-  label: string
-  value: string
-  emphasis?: boolean
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <dt className="flex items-center gap-2 text-sm text-ink-soft">
-        {swatch ? (
-          <span
-            aria-hidden="true" className="inline-block size-2.5 shrink-0 rounded-full" style={{ backgroundColor: swatch }}
-          />
-        ) : (
-          // Keeps the labels aligned with the rows that do carry a swatch.
-          <span aria-hidden="true" className="inline-block size-2.5 shrink-0" />
-        )}
-        {label}
-      </dt>
-      <dd
-        className={`text-sm tabular-nums ${
- emphasis
-            ? 'font-semibold text-ink'
-            : 'text-ink-soft'
-        }`}
-      >
-        {value}
-      </dd>
-    </div>
-  )
-}
-
 function CategoryCard({
   category,
   defaultOpen,
@@ -345,7 +232,7 @@ function CategoryCard({
           </span>
         </div>
 
-        <ProgressBar spent={category.spent} budget={category.budget} />
+        <ProgressBar value={category.spent} total={category.budget} />
 
         {!open && headCount > 0 && (
           <p className="mt-1.5 text-xs text-ink-muted">
@@ -372,37 +259,11 @@ function CategoryCard({
                   {head.budget !== null && ` / ${format(head.budget)}`}
                 </span>
               </div>
-              <ProgressBar spent={head.spent} budget={head.budget} thin />
+              <ProgressBar value={head.spent} total={head.budget} thin />
             </li>
           ))}
         </ul>
       )}
-    </div>
-  )
-}
-
-function ProgressBar({
-  spent,
-  budget,
-  thin,
-}: {
-  spent: number
-  budget: number | null
-  thin?: boolean
-}) {
-  if (budget === null || budget === 0) {
-    return null
-  }
-
-  const pct = Math.min(100, (spent / budget) * 100)
-  const over = spent > budget
-
-  return (
-    <div className={`mt-1.5 overflow-hidden rounded-full bg-track ${thin ? 'h-1' : 'h-2'}`}>
-      <div
-        className={`h-full transition-all ${over ? 'bg-negative-500' : 'bg-brand-500'}`}
-        style={{ width: `${pct}%` }}
-      />
     </div>
   )
 }

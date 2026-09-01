@@ -1,20 +1,33 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import ImpersonationBanner from '../components/ImpersonationBanner'
+import MoreMenu, { type NavItem } from '../components/MoreMenu'
 
-const baseNavItems = [
+/**
+ * The three you reach several times a day stay on the bar. Everything else lives
+ * behind More — the nav was already full at five items and the bottom bar cannot
+ * carry more labels on a narrow phone.
+ */
+const primaryNavItems: NavItem[] = [
   { to: '/', label: 'Dashboard', end: true },
-  { to: '/expenses', label: 'Expenses', end: false },
-  { to: '/incomes', label: 'Income', end: false },
-  { to: '/budgets', label: 'Budgets', end: false },
-  { to: '/categories', label: 'Categories', end: false },
+  { to: '/expenses', label: 'Expenses' },
+  { to: '/incomes', label: 'Income' },
+]
+
+const baseMoreNavItems: NavItem[] = [
+  { to: '/budgets', label: 'Budgets' },
+  { to: '/categories', label: 'Categories' },
+  { to: '/loans', label: 'Loans' },
+  { to: '/investments', label: 'Investments' },
+  { to: '/settings', label: 'Settings' },
+  { to: '/help', label: 'Help' },
 ]
 
 export default function AppLayout() {
   const { user, logout, isAdmin } = useAuth()
-  const navItems = isAdmin
-    ? [...baseNavItems, { to: '/admin/users', label: 'Admin', end: false }]
-    : baseNavItems
+  const moreNavItems = isAdmin
+    ? [...baseMoreNavItems, { to: '/admin/users', label: 'Admin' }]
+    : baseMoreNavItems
 
   return (
     <div className="min-h-screen bg-page">
@@ -36,7 +49,8 @@ export default function AppLayout() {
 
           <div className="flex items-center gap-1">
             {/* Help sits in the header rather than the nav: it belongs to no single
-                screen, and the bottom bar is already full on a narrow phone. */}
+                screen, and one tap beats two when you are stuck. It is in the More
+                list as well, for anyone who looks there first. */}
             <NavLink
               to="/help"
               aria-label="Help"
@@ -56,9 +70,10 @@ export default function AppLayout() {
             >
               {user?.displayName}
             </NavLink>
+            {/* On a phone this moves into the More sheet, where there is room for it. */}
             <button
               onClick={logout}
-              className="rounded-lg px-2.5 py-1.5 text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              className="hidden rounded-lg px-2.5 py-1.5 text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink md:block"
             >
               Log out
             </button>
@@ -68,7 +83,7 @@ export default function AppLayout() {
         {/* Desktop nav; on mobile this is replaced by the fixed bottom bar below. */}
         <nav className="hidden border-t border-line-soft md:block">
           <div className="mx-auto flex max-w-3xl gap-1 px-4">
-            {navItems.map((item) => (
+            {primaryNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -84,6 +99,7 @@ export default function AppLayout() {
                 {item.label}
               </NavLink>
             ))}
+            <MoreMenu items={moreNavItems} variant="desktop" />
           </div>
         </nav>
       </header>
@@ -94,7 +110,7 @@ export default function AppLayout() {
 
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-3xl">
-          {navItems.map((item) => (
+          {primaryNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -110,7 +126,7 @@ export default function AppLayout() {
               {({ isActive }) => (
                 <>
                   {/* A short bar rather than a filled pill: it marks the tab without
-                      crowding six labels on a narrow phone. */}
+                      crowding the labels on a narrow phone. */}
                   <span
                     aria-hidden="true" className={`absolute inset-x-3 top-0 h-0.5 rounded-full transition-colors ${
  isActive ? 'bg-brand-600 dark:bg-brand-400' : 'bg-transparent'
@@ -121,6 +137,7 @@ export default function AppLayout() {
               )}
             </NavLink>
           ))}
+          <MoreMenu items={moreNavItems} variant="mobile" onLogout={logout} />
         </div>
       </nav>
     </div>

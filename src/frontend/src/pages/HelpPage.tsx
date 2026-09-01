@@ -35,8 +35,13 @@ export default function HelpPage() {
           screen below reads the same way — just over a week.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          It is built for a phone. Everything works one-handed, and the tabs along the
-          bottom are the whole app.
+          It is built for a phone. Everything works one-handed. The tabs along the bottom
+          are the three screens you use daily —{' '}
+          <strong className="font-medium text-ink">Dashboard</strong>,{' '}
+          <strong className="font-medium text-ink">Expenses</strong> and{' '}
+          <strong className="font-medium text-ink">Income</strong> — and everything else
+          lives behind <strong className="font-medium text-ink">More</strong>: budgets,
+          categories, loans, investments, your settings and this page.
         </p>
       </section>
 
@@ -224,6 +229,61 @@ export default function HelpPage() {
           It is the same control on the dashboard, expenses, income and budgets, so all four
           agree on which period you are looking at. Each keeps its own budgets and totals
           exactly as they were.
+        </p>
+      </Step>
+
+      <Step
+        n={6}
+        title="Track a loan or an investment"
+        where={
+          <>
+            <Link className="underline hover:text-ink" to="/loans">Loans</Link>
+            {' and '}
+            <Link className="underline hover:text-ink" to="/investments">Investments</Link>
+            {' — both under More'}
+          </>
+        }
+      >
+        <p>
+          These sit <em>over</em> your ordinary spending rather than beside it. You already
+          log a loan repayment as an expense; this turns those expenses into "you owe 11,500,
+          and here is every payment you have made".
+        </p>
+        <p>
+          Add a loan with what you borrowed, who from, and — worth doing — why. Then link
+          the <strong className="font-medium text-ink">head</strong> you repay it through.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">
+            Every expense on a linked head counts against that loan.
+          </strong>{' '}
+          That is the whole trick, and the one thing to get right: don't use a linked head
+          for anything else, or unrelated spending will quietly pay down your loan. For the
+          same reason a head can belong to only one loan — the app will refuse the second.
+          Only spending from the day you took the loan onward counts.
+        </p>
+        <p>
+          The ring starts wholly{' '}
+          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
+          and fills{' '}
+          <span className="font-medium text-positive-700 dark:text-positive-400">green</span>{' '}
+          as you pay it down, with what is left in the middle. Underneath: what you paid in
+          each cycle, and your latest 20 payments. Need older ones? Set a date range — this
+          is the one place in the app that isn't tied to your budget cycle, because a loan
+          outlives any single month.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">Investments work the same way with two
+          sides.</strong> Link the spending heads you pay into it through, and the income
+          head your returns arrive on. The ring then shows how much of what you put in has
+          found its way back — red while your money is still out there, green as it returns,
+          and anything past that is your gain. The Investments screen also shows what share
+          of this cycle's income you put in.
+        </p>
+        <p className="text-ink-muted">
+          Nothing here changes your budget or your totals. A repayment is still an ordinary
+          expense, counted once, exactly as before — removing a loan leaves every expense
+          where it is.
         </p>
       </Step>
 

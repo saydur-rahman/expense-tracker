@@ -69,6 +69,8 @@ builder.Services.AddScoped<IBudgetService, BudgetService>();
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<IIncomeService, IncomeService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ILoanService, LoanService>();
+builder.Services.AddScoped<IInvestmentService, InvestmentService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 
 builder.Services.AddCors(options =>
