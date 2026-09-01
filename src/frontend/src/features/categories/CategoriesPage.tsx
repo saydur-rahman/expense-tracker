@@ -20,6 +20,7 @@ export default function CategoriesPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['categories'] })
     queryClient.invalidateQueries({ queryKey: ['budgets'] })
+    queryClient.invalidateQueries({ queryKey: ['summary'] })
   }
 
   const createCategory = useMutation({

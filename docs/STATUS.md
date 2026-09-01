@@ -1,6 +1,6 @@
 # Project Status
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-01
 
 Read this first when picking the project back up. It records what is actually built and verified, what is not, and what to do next.
 
@@ -169,6 +169,31 @@ All of the following were exercised against **live running services**, not just 
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
 
+**Frontend toolchain brought current (2026-09-01)**
+- **TypeScript 6 → 7.0.2** — the Go-native compiler, and a stable `latest`, not a preview. It went in with **zero source changes**: `tsc -b` and `tsc --noEmit -p` behave the same, the tsconfigs needed nothing, and oxlint is unaffected (it never used tsc). The typecheck is visibly faster
+- **`@types/node` 24 → 26.4.0.** Worth knowing: this is one major *ahead* of the installed runtime (Node v25.9.0), so it types Node 26 APIs that would throw here if anything called them. In this package `@types/node` only covers `vite.config.ts`, so the exposure is nil — but if that ever stops being true, `@types/node@25.9.5` is the version that matches the runtime
+- Everything else was already current and took in-range patch bumps. `npm outdated` is now empty
+- **`"strict": true` added to both tsconfigs.** It had never been set, so `strictNullChecks` and `noImplicitAny` were **off** across the whole frontend — every `?.` and `!` in the codebase was decoration rather than an enforced check. Turning it on produced **zero errors**: the code was already strict-clean by habit, and is now held that way. This was free, and it is the kind of thing that only stays free if you do it early
+- Node itself (v25.9.0), npm (11.12.1) and .NET (10.0.400) were already latest
+- Verified after: frontend typecheck, production build, oxlint (same six pre-existing warnings, no new ones), 27 unit tests, the 59 ladder checks, and the running app reloaded clean in a browser with no console errors
+
+**Always-on period overview: four bars on one scale (added 2026-09-01, reshaped 2026-09-02)**
+- The dashboard's money figures used to live *inside* the Expense/Income tabs, so you only ever saw one half. Four bars — **Budget, Income, Spent, Left** — now sit **above** the tabs and do not move when you switch them
+- **The budget is the measuring stick.** All four bars share one scale (the largest of the four figures) and a budget line is drawn at the same point on every one of them, **over** the fills — so a bar that beats the budget is seen crossing it, and one that falls short is seen falling short. Nothing is clipped and no bar is pinned to full width
+- **Budget bar**: red while it exceeds income, green once income covers it. **Income bar**: the ladder — red short of budget, green at it, yellow 20% clear, gold 50% clear. Income accrues through the period while the budget is set once, so the bar grows and climbs rungs as the period goes on; red on the 2nd is information, not a failure, and the help page says so
+- **Spent and Left are deliberately static** — brand blue and a muted slate — so the two bars above are where colour means something. The one exception is **Left going negative** (you outspent your income): it draws a red stub whose length is the size of the overspend, and the figure reads below zero
+- **Left is income minus spending**, not budget minus spending: money actually still in hand. It carries a caption saying so, because the dashboard already had a "Left" meaning the other thing
+- **This is a fourth and fifth colour in a deliberately three-colour design.** `surplus-*` (yellow) and `gold-*` are declared in `index.css` next to the others and recorded in `AGENTS.md`, scoped to this one ladder. As text they only ever appear as **tinted pills** — yellow cannot reach 4.5:1 on a light card — each with a glyph (▲ / ★) so the rungs are separable without hue
+- Thresholds live in one list in `lib/budgetHealth.ts` as whole percents, apart from the component that draws them. Adding a rung is one line there plus a fill colour and a sentence
+- **Compared in whole cents, not as a floating ratio.** `income / budget >= 1.5` put a figure that is *exactly* 50% clear a hair under the rung it earned — 123,456.78 against 185,185.17 did precisely that. Caught by the check script, not by the build
+- **One source of truth:** both the dashboard and the Budgets screen feed the bars from `/api/reports/summary` on the same query key, so they cannot disagree. `PeriodBudgetsDto.TotalIncome`/`TotalBudgeted` (added 2026-08-30 for the Budgets screen) are **removed** — they were computed over a slightly different set of categories than `ReportService` uses, which is how the same block would have printed two different budgets on two screens. Budget and category writes now invalidate `['summary']` too
+- The Budgets screen's old Income / Budgeted / Left-to-budget block is gone; nothing it said is lost — left-to-budget is the gap between the Budget and Income bars
+- Figures the bars now own were trimmed from the tab cards rather than printed twice: the "Total budget" and "Total income" headlines, and the closing "Saved X this month" sentence
+- Verified: 27 unit tests, `dotnet build` clean, frontend typecheck, oxlint and production build clean, and **59 scripted checks** over the ladder (every rung boundary to the cent, at six magnitudes; no budget; negative budget; no NaN or Infinity; exact money deviations) run through Node's type stripping, as `lib/calc` was. Tailwind was confirmed to emit every new fill class including the `bg-ink/45` budget line
+- **Seen in a real browser**, driving the app end to end against the live stack. Every state walked against a 2,400 budget: income 0 (both top bars red, income bar empty); income 1,200 (both red, income bar visibly short of the line); income 3,600 with nothing spent (budget bar green ending exactly at the line, income bar gold crossing it, ★ pill reading "50% clear of your budget"); and spending 4,000 against 3,600 income (Spent blue and now the longest bar, crossing the line; **Left** a short red stub reading −400). Earlier, before the reshape, each rung was also confirmed at its exact boundary — green at exactly 2,400, yellow at exactly 2,880, gold at exactly 3,600
+- The block held still across the Expense/Income tabs, and the dashboard and Budgets screen printed identical figures on the same period. Editing a head budget on the Budgets screen moved the bars **live** and dropped the rung gold → green, which is the `['summary']` invalidation working
+- Still unseen: the **narrow/mobile** rendering (the extension's window resize reports success but does not take effect — the same quirk recorded for the help page) and **dark mode**, since the pills' and bars' dark values were never rendered. Both are worth a look on a real phone and a dark-themed browser
+
 **Browsing earlier cycles from every screen (added 2026-08-30)**
 - Two separate faults, not one. The **dashboard** was hardcoded to `reports/summary/current` with no picker at all. **Expenses and income** sent no date filter, so the API returned *all* history — but `pageSize` defaults to 25 and the UI had no pager, so only the newest 25 rows were ever reachable. That was the "can't load all the previous values"
 - `PeriodPicker` now appears on the dashboard, expenses, income and budgets, so all four agree on which cycle is being shown. The arrows step; the label is a dropdown that jumps
@@ -227,7 +252,7 @@ Three separate defects, found by reproducing the reported "it keeps coming back 
 - **Azure allows one free SQL database per subscription**, so both services share it: Auth019 moved to the `auth` schema (migration `MoveAuthToOwnSchema`) with its own `auth.__EFMigrationsHistory`; the expense API keeps `dbo`. They still share no tables. Splitting later is a connection-string change, not a code change
 - Auth019 can now load its OpenIddict signing certificate from a **base64 PFX app setting** — free hosting has no certificate store. With none configured it falls back to ephemeral keys and warns loudly: tokens then die on every restart
 - Full setup — resource group, federated credentials, repo secrets, certificate generation — is in [DEPLOY.md](DEPLOY.md)
-- **Never deployed.** The template compiles and the workflow parses, but neither has been run against a real subscription
+- **Deployed and running.** First shipped 2026-08-30; ten successful runs of the workflow that day, the last of them merge #4. `AZURE_RESOURCE_GROUP`, `AZURE_NAME_PREFIX` and `CUSTOM_DOMAIN` are set as repo variables, and all ten secrets (federated Azure credentials, SQL and admin-seed passwords, the OpenIddict certificate, Google credentials) are configured against a `production` environment
 
 **Aspire orchestration**
 - All six resources reach Running: `sql`, `auth019db`, `expensedb`, `auth019`, `expenseapi`, `web`
@@ -251,8 +276,8 @@ Everything frontend-side is verified by TypeScript compilation, a clean producti
 ### 2. Google sign-in is unproven
 Auth019 wires Google as an Identity external provider and the login page shows the button when configured, but no real credentials were ever set, so the path has never executed. Set `Google:ClientId` and `Google:ClientSecret` in Auth019's user-secrets to enable it. Email/password is fully working and independent.
 
-### 3. Production OAuth signing keys are not set up
-Development uses OpenIddict's ephemeral dev certificates. Production reads `OpenIddict:SigningCertificateThumbprint` / `OpenIddict:EncryptionCertificateThumbprint` from configuration — **this path has never been run.** Needs real certificates before any deployment.
+### 3. Production OAuth signing keys — closed
+Development still uses OpenIddict's ephemeral dev certificates, but production now loads a real certificate from the `OPENIDDICT_CERT_BASE64` / `OPENIDDICT_CERT_PASSWORD` secrets, and has done since the first deploy on 2026-08-30. What is *not* recorded anywhere is the certificate's expiry — worth checking, because tokens die when it lapses.
 
 ### 4. Mobile polish pass not done
 Layouts are mobile-first with a bottom tab bar, but no dedicated pass happened. Loading and error states are minimal.
@@ -260,8 +285,8 @@ Layouts are mobile-first with a bottom tab bar, but no dedicated pass happened. 
 ### 5. Test coverage is narrow
 Only `MonthCycleMath` has unit tests. The budget constraint and the impersonation/scope rules are verified by scripted live calls, not automated tests. Closing that gap is the highest-value testing work: `BudgetService` is pure service logic and easy to test.
 
-### 6. Nothing has actually been deployed
-`infra/main.bicep` compiles and `deploy.yml` parses, but no subscription has run either. Expect the first deploy to surface something — the likeliest candidates are `.NET 10` not yet being available on App Service in your region (fall back to a self-contained publish, noted in DEPLOY.md) and the federated-credential subject not matching. The free SQL database also has to be the *only* free one in the subscription.
+### 6. Deployment — closed
+Shipped on 2026-08-30 and green every run since. Merging to `main` is what deploys; nothing else does. **These gap notes had said "never deployed" for three days after it had been — check the workflow run list before trusting this section again.**
 
 ### 7. Mobile number and country are collected but never shown
 Registration stores both, but nothing surfaces them afterwards — `AdminUserDto` doesn't carry them, there's no profile screen, and no one can correct a typo in their own number. Neither field is validated beyond shape: the mobile is not uniqueness-checked and not verified by SMS.
@@ -277,7 +302,7 @@ No seeding command exists yet; test data means clicking through the UI or callin
 2. **Add unit tests for `BudgetService`** covering the constraint edge cases (gap 5).
 3. **Mobile polish pass** (gap 4).
 4. **Wire up Google sign-in** when you have credentials (gap 2).
-5. **Deployment**: the chosen path is container hosting (Azure Container Apps, or docker-compose on a VPS) — Aspire publishes the manifests. Before that: real signing certificates (gap 3), production connection strings, `Spa:Origin`/CORS set to the real frontend URL, and the SPA client's redirect URIs updated in `AuthSeeder`.
+5. ~~Deployment~~ — done. It ships to Azure App Service + Static Web Apps on merge to `main`, not the container hosting this line used to propose. See [DEPLOY.md](DEPLOY.md).
 
 ---
 

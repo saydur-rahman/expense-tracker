@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { budgetPeriodsApi, type PeriodKind } from '../../api/settings'
-import { budgetsApi, type CategoryBudget, type PeriodBudgets } from '../../api/budgets'
+import { budgetPeriodsApi } from '../../api/settings'
+import { budgetsApi, type CategoryBudget } from '../../api/budgets'
+import { reportsApi } from '../../api/reports'
 import { ApiError } from '../../api/client'
 import PeriodPicker from '../../components/PeriodPicker'
+import PeriodOverview from '../../components/PeriodOverview'
 import { useMoney } from '../../lib/money'
 import { readAmount } from '../../lib/calc'
 import { AmountHint } from '../../components/AmountField'
@@ -20,6 +22,14 @@ export default function BudgetSetupPage() {
   const { data: budgets, isLoading } = useQuery({
     queryKey: ['budgets', period?.id],
     queryFn: () => budgetsApi.get(period!.id),
+    enabled: !!period,
+  })
+
+  // Deliberately the dashboard's query, key and all: the overview strip has to read
+  // identically on both screens, and one source is the only way to guarantee that.
+  const { data: summary } = useQuery({
+    queryKey: ['summary', period?.id],
+    queryFn: () => reportsApi.summary(period!.id),
     enabled: !!period,
   })
 
@@ -43,7 +53,7 @@ export default function BudgetSetupPage() {
 
       <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
 
-      {budgets && <IncomeAgainstBudget budgets={budgets} kind={period?.kind ?? 'Month'} />}
+      {summary && <PeriodOverview summary={summary} kind={period?.kind ?? 'Month'} />}
 
       {(budgets?.categories.length ?? 0) > 4 && (
         <input
@@ -84,71 +94,6 @@ export default function BudgetSetupPage() {
   )
 }
 
-/**
- * What there is to divide up, and what is left after everything budgeted so far — so the
- * decisions below are made against the income for the same period rather than from memory.
- *
- * Over-budgeting is shown, not prevented: going past your income is a thing people
- * genuinely do, and hiding it would not make it less true.
- */
-function IncomeAgainstBudget({ budgets, kind }: { budgets: PeriodBudgets; kind: PeriodKind }) {
-  const money = useMoney()
-  const left = budgets.totalIncome - budgets.totalBudgeted
-  const isOver = left < 0
-  const span = kind === 'Week' ? 'this week' : 'this month'
-
-  return (
-    <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <span>
-          <span className="block text-xs font-medium uppercase tracking-wide text-ink-muted">
-            Income {span}
-          </span>
-          <span className="block text-lg font-semibold tabular-nums text-ink">
-            {money.format(budgets.totalIncome)}
-          </span>
-        </span>
-
-        <span className="text-right">
-          <span className="block text-xs font-medium uppercase tracking-wide text-ink-muted">
-            Budgeted
-          </span>
-          <span className="block text-lg font-semibold tabular-nums text-ink">
-            {money.format(budgets.totalBudgeted)}
-          </span>
-        </span>
-
-        <span className="text-right">
-          <span className="block text-xs font-medium uppercase tracking-wide text-ink-muted">
-            {isOver ? 'Over by' : 'Left to budget'}
-          </span>
-          <span
-            className={`block text-lg font-semibold tabular-nums ${
-              isOver
-                ? 'text-negative-600 dark:text-negative-400'
-                : 'text-positive-700 dark:text-positive-400'
-            }`}
-          >
-            {money.format(left)}
-          </span>
-        </span>
-      </div>
-
-      {isOver && (
-        <p className="mt-2 text-xs text-negative-600 dark:text-negative-400">
-          You have budgeted {money.format(Math.abs(left))} more than you earned {span}.
-        </p>
-      )}
-
-      {budgets.totalIncome === 0 && (
-        <p className="mt-2 text-xs text-ink-muted">
-          No income logged for this period yet — log it on the Income screen and this fills in.
-        </p>
-      )}
-    </div>
-  )
-}
-
 function CategoryBudgetCard({
   periodId,
   category,
@@ -168,6 +113,7 @@ function CategoryBudgetCard({
     onSuccess: () => {
       setError(null)
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
   })

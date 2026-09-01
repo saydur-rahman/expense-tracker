@@ -174,7 +174,7 @@ Categories carry a `kind` of `Expense` or `Income` (serialised as a string). The
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/budget-periods/{periodId}/budgets` | `totalIncome` and `totalBudgeted` for the period, then per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
+| GET | `/api/budget-periods/{periodId}/budgets` | Per category: `amount` (in force), `target`, `allocatedToHeads`, `difference`, plus its heads |
 | PUT | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | `{amount}` — sets the **target**; never caps the heads |
 | DELETE | `/api/budget-periods/{periodId}/categories/{categoryId}/budget` | Clears the target only; **head budgets are left alone** |
 | PUT | `/api/budget-periods/{periodId}/heads/{headId}/budget` | `{amount}`; no category budget needed first, and nothing caps it |
@@ -190,11 +190,11 @@ target, negative that much **short** of it, and null when there is nothing to co
 **Rejections to expect (400):** a negative amount. Nothing else — heads over or under the
 target are reported through `difference`, never refused.
 
-`totalIncome` is income dated inside the period, archived heads included, so the budgeting
-screen can show what there is to divide up without a second call to the reports endpoint.
-`totalBudgeted` sums each category's `amount`, so it follows the same heads-first rule.
-Budgeting past your income is **not** refused — `totalIncome - totalBudgeted` simply goes
-negative and the screen says so.
+**No period totals here.** They used to be (`totalIncome`, `totalBudgeted`) so the budgeting
+screen could avoid a second call. It now reads the same `/api/reports/summary` the dashboard
+does, because the two screens draw the same overview strip and had to agree to the cent —
+and these two figures were computed over a slightly different set of categories. Budgeting
+past your income is still **not** refused; the strip simply says by how much.
 
 ### Expenses
 
