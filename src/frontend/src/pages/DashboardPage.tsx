@@ -4,6 +4,7 @@ import { reportsApi, type CategorySummary, type PeriodSummary } from '../api/rep
 import type { CategoryKind } from '../api/categories'
 import LedgerTabs from '../components/LedgerTabs'
 import PeriodPicker from '../components/PeriodPicker'
+import PeriodOverview from '../components/PeriodOverview'
 import { budgetPeriodsApi } from '../api/settings'
 import { useMoney } from '../lib/money'
 
@@ -42,7 +43,11 @@ export default function DashboardPage() {
 
       <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
 
-      {/* The tab picks the whole view — chart and breakdown both follow it. */}
+      {/* Above the tabs on purpose: these four figures describe the period itself, so
+          they must not move or change when the breakdown below switches ledger. */}
+      {summary && <PeriodOverview summary={summary} kind={period?.kind ?? 'Month'} />}
+
+      {/* The tab picks the breakdown — chart and categories both follow it. */}
       <LedgerTabs value={ledger} onChange={setLedger} />
 
       {isLoading && <p className="text-ink-muted">Loading…</p>}
@@ -78,17 +83,10 @@ function MonthTotals({ summary }: { summary: PeriodSummary }) {
   const over = remaining < 0
   const pctUsed = budget > 0 ? (spent / budget) * 100 : 0
 
+  // The budget and spent figures themselves live in the overview strip above; what is
+  // left to add here is their shape.
   return (
     <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Total budget
-        </span>
-        <span className="text-lg font-semibold tabular-nums text-ink">
-          {format(budget)}
-        </span>
-      </div>
-
       {budget > 0 ? (
         <>
           <TotalBar spent={spent} budget={budget} />
@@ -98,7 +96,7 @@ function MonthTotals({ summary }: { summary: PeriodSummary }) {
               : `${Math.round(pctUsed)}% used`}
           </p>
 
-          <div className="mt-4 flex items-center gap-4 border-t border-line-soft pt-4">
+          <div className="mt-4 flex items-center gap-4">
             <TwoSliceDonut
               first={{ label: 'Spent', value: spent, color: over ? OVER_COLOR : SPENT_COLOR }}
               second={{ label: 'Left', value: Math.max(0, remaining), color: LEFT_COLOR }}
@@ -118,7 +116,7 @@ function MonthTotals({ summary }: { summary: PeriodSummary }) {
           </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-ink-muted">
+        <p className="text-sm text-ink-muted">
           Set a category budget to track how much is left.
         </p>
       )}
@@ -132,26 +130,19 @@ function IncomeTotals({ summary }: { summary: PeriodSummary }) {
   const overspent = saved < 0
   const hasAnything = income > 0 || spent > 0
 
+  // Income and what is left of it are in the overview strip above; this card is the
+  // shape of the split.
   return (
     <div className="rounded-xl border border-line bg-card p-4 shadow-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Total income
-        </span>
-        <span className="text-lg font-semibold tabular-nums text-ink">
-          {format(income)}
-        </span>
-      </div>
-
       {hasAnything ? (
         <>
-          <p className="mt-1.5 text-xs text-ink-muted">
+          <p className="text-xs text-ink-muted">
             {overspent
               ? `Spent ${format(Math.abs(saved))} more than you earned`
               : `Kept ${income > 0 ? Math.round((saved / income) * 100) : 0}% of it`}
           </p>
 
-          <div className="mt-4 flex items-center gap-4 border-t border-line-soft pt-4">
+          <div className="mt-4 flex items-center gap-4">
             {/* The whole ring is your income: expense takes a slice and whatever is
                 left over is savings. Outspend your income and there is no slice
                 left, so the ring goes fully red. */}
@@ -173,23 +164,9 @@ function IncomeTotals({ summary }: { summary: PeriodSummary }) {
               />
             </dl>
           </div>
-
-          <p className="mt-4 border-t border-line-soft pt-3 text-sm">
-            <span className="text-ink-muted">
-              {overspent ? 'Overspent by ' : 'Saved '}
-            </span>
-            <span
-              className="font-semibold tabular-nums" style={{ color: overspent ? OVER_COLOR : LEFT_COLOR }}
-            >
-              {format(Math.abs(saved))}
-            </span>
-            <span className="text-ink-muted">
-              {overspent ? ' more than you earned this month' : ' this month'}
-            </span>
-          </p>
         </>
       ) : (
-        <p className="mt-2 text-sm text-ink-muted">
+        <p className="text-sm text-ink-muted">
           Log some income to see how much of it you are keeping.
         </p>
       )}

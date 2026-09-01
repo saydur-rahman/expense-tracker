@@ -200,22 +200,12 @@ public class BudgetService : IBudgetService
             .Where(hb => hb.BudgetPeriodId == period.Id)
             .ToDictionaryAsync(hb => hb.HeadId, hb => hb.Amount);
 
-        // Filters ignored so income under a head since archived still counts towards what
-        // there was to spend — the same reason the reports queries ignore them.
-        var totalIncome = await _db.Incomes
-            .IgnoreQueryFilters()
-            .Where(i => i.UserId == userId
-                        && i.IncomeDate >= period.StartDate
-                        && i.IncomeDate <= period.EndDate)
-            .SumAsync(i => (decimal?)i.Amount) ?? 0m;
-
         var dto = new PeriodBudgetsDto
         {
             PeriodId = period.Id,
             PeriodLabel = period.Label,
             StartDate = period.StartDate,
             EndDate = period.EndDate,
-            TotalIncome = totalIncome,
         };
 
         foreach (var category in categories)
@@ -245,8 +235,6 @@ public class BudgetService : IBudgetService
                 Heads = heads,
             });
         }
-
-        dto.TotalBudgeted = dto.Categories.Sum(c => c.Amount ?? 0m);
 
         return dto;
     }

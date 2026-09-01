@@ -110,12 +110,14 @@ export default function HelpPage() {
           it simply becomes the category's budget.
         </p>
         <p>
-          Across the top the screen shows your{' '}
-          <strong className="font-medium text-ink">income for the same period</strong>, what
-          you have budgeted so far, and what is{' '}
-          <strong className="font-medium text-ink">left to budget</strong> — so you are
-          dividing up a real number rather than working from memory. Budget past your income
-          and it turns red and counts down below zero. Nothing stops you; it just says so.
+          Across the top sit the same four bars you get on the dashboard —{' '}
+          <strong className="font-medium text-ink">Budget</strong>,{' '}
+          <strong className="font-medium text-ink">Income</strong>,{' '}
+          <strong className="font-medium text-ink">Spent</strong> and{' '}
+          <strong className="font-medium text-ink">Left</strong> — so you are dividing up a
+          real number rather than working from memory. Watch the top two as you type: if your
+          budget bar is longer than your income bar, you have planned to spend more than you
+          have earned, and both turn red. Nothing stops you doing it. It just says so.
         </p>
         <p>
           Tap a category to fold it away. With more than a handful they start folded, so the
@@ -167,20 +169,54 @@ export default function HelpPage() {
         where={<Link className="underline hover:text-ink" to="/">Dashboard</Link>}
       >
         <p>
-          The bar at the top is your whole month — or week, if that's your rhythm: spent
-          against budgeted. The donut beside
-          it splits the same figure into{' '}
-          <span className="font-medium text-positive-700 dark:text-positive-400">Left</span>{' '}
-          and Spent. Go over and both turn{' '}
-          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
-          and the centre reads "Over".
+          Four bars sit at the top, in the order they answer the question:{' '}
+          <strong className="font-medium text-ink">Budget</strong> — what you planned to
+          spend, <strong className="font-medium text-ink">Income</strong> — what has come in
+          so far, <strong className="font-medium text-ink">Spent</strong> — what has gone
+          out, and <strong className="font-medium text-ink">Left</strong> — what that leaves
+          you. They never change when you switch tabs: they describe the whole period.
         </p>
         <p>
-          Below that, <strong className="font-medium text-ink">Income vs expense</strong>{' '}
-          shows what came in against what went out, with the amount you saved called out
-          underneath. Then a card per category shows how each is tracking. The{' '}
-          <strong className="font-medium text-ink">Expense / Income</strong> tabs switch
-          that breakdown between the two ledgers.
+          <strong className="font-medium text-ink">Your budget is the measuring stick.</strong>{' '}
+          All four bars are drawn to the same scale, and a faint upright line runs down every
+          one of them at the point your budget sits. So you can see at a glance whether your
+          income has reached that line yet, and whether your spending has gone past it — no
+          arithmetic needed.
+        </p>
+        <p>
+          The <strong className="font-medium text-ink">Budget</strong> bar is{' '}
+          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
+          while you have budgeted more than you have earned, and{' '}
+          <span className="font-medium text-positive-700 dark:text-positive-400">green</span>{' '}
+          once your income covers it. The <strong className="font-medium text-ink">Income</strong>{' '}
+          bar grows as money comes in and tells the same story from the other side: red while
+          it is short of your budget,{' '}
+          <span className="font-medium text-positive-700 dark:text-positive-400">green</span>{' '}
+          when it reaches it, <strong className="font-medium text-ink">yellow</strong> once
+          you are 20% clear and <strong className="font-medium text-ink">gold</strong> at 50%.
+          Red early in the month is normal — it is telling you the month isn't paid for yet,
+          not that you have done something wrong.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">Spent</strong> and{' '}
+          <strong className="font-medium text-ink">Left</strong> keep one plain colour each,
+          so the two bars above are the ones your eye goes to. The one exception:{' '}
+          <strong className="font-medium text-ink">Left is your income minus your spending</strong>,
+          not your budget minus your spending — money you actually still have — so it turns{' '}
+          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
+          and reads below zero if you spend more than you earned.
+        </p>
+        <p>
+          Under that, the bar is your whole month — or week, if that's your rhythm: spent
+          against budgeted. The donut beside it splits the same figure into{' '}
+          <span className="font-medium text-positive-700 dark:text-positive-400">Left</span>{' '}
+          and Spent. Go over and both turn{' '}
+          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>.
+          Switch to the <strong className="font-medium text-ink">Income</strong> tab and the
+          same ring shows what came in against what went out instead. Below either, a card
+          per category shows how each is tracking; the{' '}
+          <strong className="font-medium text-ink">Expense / Income</strong> tabs switch that
+          breakdown between the two ledgers.
         </p>
         <p>
           The picker at the top moves between cycles: the arrows step one at a time, and the

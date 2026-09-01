@@ -3,10 +3,17 @@
 /**
  * Two layers to the palette.
  *
- * MEANING — three colours, used sparingly:
+ * MEANING — three colours carry the everyday states, used sparingly:
  *   blue   — the brand: actions, links, anything selected
  *   green  — money you still have: budget left, income, savings
  *   red    — trouble: over budget, overspent, destructive actions
+ *
+ * And two more exist for one job only — the rungs above "your income covers your
+ * budget" on the dashboard's overview strip, where green is already spoken for:
+ *   surplus (yellow) — income has run 20% clear of the budget
+ *   gold             — income has run 50% clear of it
+ * Both are used as tinted pills rather than coloured text: yellow on a light card
+ * cannot reach 4.5:1 as ink. Don't reach for either outside that ladder.
  *
  * SURFACES — a cool, slightly blue-tinted neutral scale rather than white on grey.
  * Nothing in the app is pure #fff or pure #000: the ground is a soft blue-grey and
@@ -89,6 +96,20 @@
   --color-negative-600: #dc2626;
   --color-negative-700: #b91c1c;
   --color-negative-950: #450a0a;
+
+  /* The two surplus rungs. Steps are the ones the pills actually use — a tint, an
+     ink, and a ring — rather than a full scale nothing would reference. */
+  --color-surplus-100: #fef9c3;
+  --color-surplus-300: #fde047;
+  --color-surplus-400: #facc15;
+  --color-surplus-800: #854d0e;
+  --color-surplus-950: #422006;
+
+  --color-gold-100: #fef3c7;
+  --color-gold-300: #fcd34d;
+  --color-gold-400: #d4af37;
+  --color-gold-800: #92400e;
+  --color-gold-950: #451a03;
 }
 
 body {

@@ -1,6 +1,6 @@
 # Project Status
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-01
 
 Read this first when picking the project back up. It records what is actually built and verified, what is not, and what to do next.
 
@@ -168,6 +168,31 @@ All of the following were exercised against **live running services**, not just 
 - `PeriodBudgetsDto` gained `totalIncome` and `totalBudgeted` rather than the screen making a second call to the reports endpoint. `totalBudgeted` sums each category's `amount`, so it follows the heads-first rule instead of re-deriving it
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
+
+**Frontend toolchain brought current (2026-09-01)**
+- **TypeScript 6 → 7.0.2** — the Go-native compiler, and a stable `latest`, not a preview. It went in with **zero source changes**: `tsc -b` and `tsc --noEmit -p` behave the same, the tsconfigs needed nothing, and oxlint is unaffected (it never used tsc). The typecheck is visibly faster
+- **`@types/node` 24 → 26.4.0.** Worth knowing: this is one major *ahead* of the installed runtime (Node v25.9.0), so it types Node 26 APIs that would throw here if anything called them. In this package `@types/node` only covers `vite.config.ts`, so the exposure is nil — but if that ever stops being true, `@types/node@25.9.5` is the version that matches the runtime
+- Everything else was already current and took in-range patch bumps. `npm outdated` is now empty
+- **`"strict": true` added to both tsconfigs.** It had never been set, so `strictNullChecks` and `noImplicitAny` were **off** across the whole frontend — every `?.` and `!` in the codebase was decoration rather than an enforced check. Turning it on produced **zero errors**: the code was already strict-clean by habit, and is now held that way. This was free, and it is the kind of thing that only stays free if you do it early
+- Node itself (v25.9.0), npm (11.12.1) and .NET (10.0.400) were already latest
+- Verified after: frontend typecheck, production build, oxlint (same six pre-existing warnings, no new ones), 27 unit tests, the 59 ladder checks, and the running app reloaded clean in a browser with no console errors
+
+**Always-on period overview: four bars on one scale (added 2026-09-01, reshaped 2026-09-02)**
+- The dashboard's money figures used to live *inside* the Expense/Income tabs, so you only ever saw one half. Four bars — **Budget, Income, Spent, Left** — now sit **above** the tabs and do not move when you switch them
+- **The budget is the measuring stick.** All four bars share one scale (the largest of the four figures) and a budget line is drawn at the same point on every one of them, **over** the fills — so a bar that beats the budget is seen crossing it, and one that falls short is seen falling short. Nothing is clipped and no bar is pinned to full width
+- **Budget bar**: red while it exceeds income, green once income covers it. **Income bar**: the ladder — red short of budget, green at it, yellow 20% clear, gold 50% clear. Income accrues through the period while the budget is set once, so the bar grows and climbs rungs as the period goes on; red on the 2nd is information, not a failure, and the help page says so
+- **Spent and Left are deliberately static** — brand blue and a muted slate — so the two bars above are where colour means something. The one exception is **Left going negative** (you outspent your income): it draws a red stub whose length is the size of the overspend, and the figure reads below zero
+- **Left is income minus spending**, not budget minus spending: money actually still in hand. It carries a caption saying so, because the dashboard already had a "Left" meaning the other thing
+- **This is a fourth and fifth colour in a deliberately three-colour design.** `surplus-*` (yellow) and `gold-*` are declared in `index.css` next to the others and recorded in `AGENTS.md`, scoped to this one ladder. As text they only ever appear as **tinted pills** — yellow cannot reach 4.5:1 on a light card — each with a glyph (▲ / ★) so the rungs are separable without hue
+- Thresholds live in one list in `lib/budgetHealth.ts` as whole percents, apart from the component that draws them. Adding a rung is one line there plus a fill colour and a sentence
+- **Compared in whole cents, not as a floating ratio.** `income / budget >= 1.5` put a figure that is *exactly* 50% clear a hair under the rung it earned — 123,456.78 against 185,185.17 did precisely that. Caught by the check script, not by the build
+- **One source of truth:** both the dashboard and the Budgets screen feed the bars from `/api/reports/summary` on the same query key, so they cannot disagree. `PeriodBudgetsDto.TotalIncome`/`TotalBudgeted` (added 2026-08-30 for the Budgets screen) are **removed** — they were computed over a slightly different set of categories than `ReportService` uses, which is how the same block would have printed two different budgets on two screens. Budget and category writes now invalidate `['summary']` too
+- The Budgets screen's old Income / Budgeted / Left-to-budget block is gone; nothing it said is lost — left-to-budget is the gap between the Budget and Income bars
+- Figures the bars now own were trimmed from the tab cards rather than printed twice: the "Total budget" and "Total income" headlines, and the closing "Saved X this month" sentence
+- Verified: 27 unit tests, `dotnet build` clean, frontend typecheck, oxlint and production build clean, and **59 scripted checks** over the ladder (every rung boundary to the cent, at six magnitudes; no budget; negative budget; no NaN or Infinity; exact money deviations) run through Node's type stripping, as `lib/calc` was. Tailwind was confirmed to emit every new fill class including the `bg-ink/45` budget line
+- **Seen in a real browser**, driving the app end to end against the live stack. Every state walked against a 2,400 budget: income 0 (both top bars red, income bar empty); income 1,200 (both red, income bar visibly short of the line); income 3,600 with nothing spent (budget bar green ending exactly at the line, income bar gold crossing it, ★ pill reading "50% clear of your budget"); and spending 4,000 against 3,600 income (Spent blue and now the longest bar, crossing the line; **Left** a short red stub reading −400). Earlier, before the reshape, each rung was also confirmed at its exact boundary — green at exactly 2,400, yellow at exactly 2,880, gold at exactly 3,600
+- The block held still across the Expense/Income tabs, and the dashboard and Budgets screen printed identical figures on the same period. Editing a head budget on the Budgets screen moved the bars **live** and dropped the rung gold → green, which is the `['summary']` invalidation working
+- Still unseen: the **narrow/mobile** rendering (the extension's window resize reports success but does not take effect — the same quirk recorded for the help page) and **dark mode**, since the pills' and bars' dark values were never rendered. Both are worth a look on a real phone and a dark-themed browser
 
 **Browsing earlier cycles from every screen (added 2026-08-30)**
 - Two separate faults, not one. The **dashboard** was hardcoded to `reports/summary/current` with no picker at all. **Expenses and income** sent no date filter, so the API returned *all* history — but `pageSize` defaults to 25 and the UI had no pager, so only the newest 25 rows were ever reachable. That was the "can't load all the previous values"

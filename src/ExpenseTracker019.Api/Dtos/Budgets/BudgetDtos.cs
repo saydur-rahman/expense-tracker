@@ -46,18 +46,10 @@ public class PeriodBudgetsDto
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
 
-    /// <summary>
-    /// Income logged in this period. Carried here so the budgeting screen can show what
-    /// there is to divide up without a second round trip to the reports endpoint.
-    /// </summary>
-    public decimal TotalIncome { get; set; }
-
-    /// <summary>
-    /// Every category's budget in force, added together — so it follows the same
-    /// heads-first rule as <see cref="CategoryBudgetDto.Amount"/> rather than re-deriving it.
-    /// </summary>
-    public decimal TotalBudgeted { get; set; }
-
+    // No period totals here on purpose. The budgeting screen shows income, budget, spent
+    // and left through the same reports summary the dashboard uses, so the two screens
+    // cannot print different figures — and the heads-first rule stays in the two places
+    // that already own it rather than gaining a third.
     public List<CategoryBudgetDto> Categories { get; set; } = new();
 }
 
