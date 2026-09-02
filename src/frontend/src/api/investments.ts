@@ -3,9 +3,15 @@ import type { LinkedHead, PeriodTotal, TransactionFilters } from './loans'
 
 export type InvestmentDirection = 'Contribution' | 'Return'
 
+/** Investing and lending share one screen: only the wording and grouping differ. */
+export type InvestmentKind = 'Investment' | 'Lend'
+
 export interface Investment {
   id: string
   name: string
+  kind: InvestmentKind
+  /** Who you lent it to. Only set on a Lend. */
+  counterparty: string | null
   remark: string | null
   startedOn: string
   /** Spending on the contribution heads, from `startedOn` onward. */
@@ -61,6 +67,8 @@ export interface InvestmentVsIncome {
 
 export interface SaveInvestmentRequest {
   name: string
+  kind: InvestmentKind
+  counterparty: string | null
   remark: string | null
   startedOn: string
   /** Both replace their linked set wholesale. */

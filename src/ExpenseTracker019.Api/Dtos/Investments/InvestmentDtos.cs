@@ -8,6 +8,13 @@ public class InvestmentDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Investment or a loan to someone else. Only wording and grouping follow it.</summary>
+    public InvestmentKind Kind { get; set; }
+
+    /// <summary>Who you lent it to. Only set on a <see cref="InvestmentKind.Lend"/>.</summary>
+    public string? Counterparty { get; set; }
+
     public string? Remark { get; set; }
     public DateOnly StartedOn { get; set; }
 
@@ -77,7 +84,11 @@ public class InvestmentVsIncomeDto
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
 
-    /// <summary>Put into investments during this cycle.</summary>
+    /// <summary>
+    /// Put into <see cref="InvestmentKind.Investment"/> entries during this cycle. Money
+    /// lent out is deliberately excluded: this answers "what share of my income did I
+    /// invest", and a loan to a friend is not that.
+    /// </summary>
     public decimal Invested { get; set; }
 
     /// <summary>All income in this cycle, the same figure the dashboard shows.</summary>
@@ -95,6 +106,11 @@ public class SaveInvestmentRequest
     [Required]
     [MaxLength(120)]
     public string Name { get; set; } = string.Empty;
+
+    public InvestmentKind Kind { get; set; }
+
+    [MaxLength(120)]
+    public string? Counterparty { get; set; }
 
     [MaxLength(1000)]
     public string? Remark { get; set; }

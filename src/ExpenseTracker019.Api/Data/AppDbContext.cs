@@ -185,8 +185,14 @@ public class AppDbContext : DbContext
         builder.Entity<Investment>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Counterparty).HasMaxLength(120);
             e.Property(x => x.Remark).HasMaxLength(1000);
-            e.HasIndex(x => x.UserId);
+
+            // No HasDefaultValue: InvestmentKind.Investment is 0, so the column's own SQL
+            // default backfills existing rows onto it. Giving it a store default would make
+            // EF treat it as store-generated and send DEFAULT for Investment, which is the
+            // trap that rewrote DayOfWeek.Sunday as Monday.
+            e.HasIndex(x => new { x.UserId, x.Kind });
         });
 
         builder.Entity<InvestmentHead>(e =>

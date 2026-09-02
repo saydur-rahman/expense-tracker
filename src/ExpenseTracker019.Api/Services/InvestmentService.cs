@@ -34,7 +34,9 @@ public class InvestmentService : IInvestmentService
 
     public async Task<List<InvestmentDto>> ListAsync(Guid userId)
     {
-        var investments = await InvestmentsWithHeads(userId).OrderBy(i => i.Name).ToListAsync();
+        var investments = await InvestmentsWithHeads(userId)
+            .OrderBy(i => i.Kind).ThenBy(i => i.Name)
+            .ToListAsync();
 
         var result = new List<InvestmentDto>(investments.Count);
         foreach (var investment in investments)
@@ -141,6 +143,7 @@ public class InvestmentService : IInvestmentService
 
         var contributionHeadIds = await _db.InvestmentHeads
             .Where(ih => ih.Investment.UserId == userId
+                         && ih.Investment.Kind == InvestmentKind.Investment
                          && ih.Direction == InvestmentDirection.Contribution)
             .Select(ih => ih.HeadId)
             .ToListAsync();
@@ -184,6 +187,8 @@ public class InvestmentService : IInvestmentService
         {
             UserId = userId,
             Name = request.Name.Trim(),
+            Kind = request.Kind,
+            Counterparty = Clean(request.Counterparty),
             Remark = Clean(request.Remark),
             StartedOn = request.StartedOn,
         };
@@ -203,6 +208,8 @@ public class InvestmentService : IInvestmentService
         var investment = await GetOwnedAsync(userId, investmentId);
 
         investment.Name = request.Name.Trim();
+        investment.Kind = request.Kind;
+        investment.Counterparty = Clean(request.Counterparty);
         investment.Remark = Clean(request.Remark);
         investment.StartedOn = request.StartedOn;
         investment.UpdatedAtUtc = DateTime.UtcNow;
@@ -319,6 +326,8 @@ public class InvestmentService : IInvestmentService
         {
             Id = investment.Id,
             Name = investment.Name,
+            Kind = investment.Kind,
+            Counterparty = investment.Counterparty,
             Remark = investment.Remark,
             StartedOn = investment.StartedOn,
             Invested = invested,
@@ -425,7 +434,9 @@ public class InvestmentService : IInvestmentService
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
-            throw new ValidationAppException("Give the investment a name so you can tell it apart.");
+            throw new ValidationAppException(request.Kind == InvestmentKind.Lend
+                ? "Give it a name so you can tell it apart."
+                : "Give the investment a name so you can tell it apart.");
         }
     }
 }

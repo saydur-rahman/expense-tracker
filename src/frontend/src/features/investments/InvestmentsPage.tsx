@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { investmentsApi, type Investment } from '../../api/investments'
+import { investmentsApi, type Investment, type InvestmentKind } from '../../api/investments'
 import { categoriesApi } from '../../api/categories'
 import { budgetPeriodsApi } from '../../api/settings'
 import { ApiError } from '../../api/client'
@@ -15,6 +15,7 @@ import LegendRow from '../../components/charts/LegendRow'
 import { LEFT_COLOR, SPENT_COLOR } from '../../components/charts/colors'
 import { card, emptyState, field, eyebrow, pageTitle } from '../../components/ui'
 import { todayLocal } from '../../lib/dates'
+import { wordingFor } from './wording'
 
 export default function InvestmentsPage() {
   const [adding, setAdding] = useState(false)
@@ -39,9 +40,9 @@ export default function InvestmentsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className={pageTitle}>Investments</h1>
+        <h1 className={pageTitle}>Investments &amp; lending</h1>
         <p className="text-sm text-ink-muted">
-          What you have put in, and how much of it has come back.
+          What you have put out, and how much of it has come back.
         </p>
       </div>
 
@@ -59,16 +60,28 @@ export default function InvestmentsPage() {
 
       {investments?.length === 0 && (
         <p className={emptyState}>
-          Nothing here yet. Add an investment, link the heads you pay into it through and the
-          head your returns arrive on, and both sides will fill in as you log them.
+          Nothing here yet. Add an investment or something you have lent out, link the heads
+          the money leaves through and the head it comes back on, and both sides will fill in
+          as you log them.
         </p>
       )}
 
-      <div className="flex flex-col gap-2">
-        {investments?.map((investment) => (
-          <InvestmentCard key={investment.id} investment={investment} />
-        ))}
-      </div>
+      {(['Investment', 'Lend'] as const).map((kind) => {
+        const group = investments?.filter((i) => i.kind === kind) ?? []
+        if (group.length === 0) return null
+
+        return (
+          <section key={kind} className="flex flex-col gap-2">
+            {/* Only worth a heading once both kinds are actually in use. */}
+            {investments!.some((i) => i.kind !== kind) && (
+              <h2 className={eyebrow}>{wordingFor(kind).group}</h2>
+            )}
+            {group.map((investment) => (
+              <InvestmentCard key={investment.id} investment={investment} />
+            ))}
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -119,6 +132,7 @@ function VsIncome({
 
 function InvestmentCard({ investment }: { investment: Investment }) {
   const { format } = useMoney()
+  const words = wordingFor(investment.kind)
 
   return (
     <Link
@@ -126,7 +140,14 @@ function InvestmentCard({ investment }: { investment: Investment }) {
       className={`${card} block px-4 py-3 transition-colors hover:bg-raised`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate font-medium text-ink">{investment.name}</span>
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-ink">{investment.name}</span>
+          {investment.counterparty && (
+            <span className="block truncate text-xs text-ink-muted">
+              {investment.counterparty}
+            </span>
+          )}
+        </span>
         <span className="shrink-0 text-right">
           <span
             className={`block text-sm font-semibold tabular-nums ${
@@ -135,7 +156,7 @@ function InvestmentCard({ investment }: { investment: Investment }) {
                 : 'text-negative-600 dark:text-negative-400'
             }`}
           >
-            {investment.isRecouped ? 'Recouped' : format(investment.outstanding)}
+            {investment.isRecouped ? words.settled : format(investment.outstanding)}
           </span>
           <span className="block text-xs text-ink-muted">
             {format(investment.returned)} back of {format(investment.invested)}
@@ -152,7 +173,7 @@ function InvestmentCard({ investment }: { investment: Investment }) {
 
       {investment.contributionHeads.length === 0 && (
         <p className="mt-1.5 text-xs text-negative-600 dark:text-negative-400">
-          No head linked for money going in — nothing will count until you link one.
+          No head linked for money going out — nothing will count until you link one.
         </p>
       )}
     </Link>
@@ -168,6 +189,8 @@ export function InvestmentForm({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState(investment?.name ?? '')
+  const [kind, setKind] = useState<InvestmentKind>(investment?.kind ?? 'Investment')
+  const [counterparty, setCounterparty] = useState(investment?.counterparty ?? '')
   const [startedOn, setStartedOn] = useState(investment?.startedOn ?? todayLocal())
   const [remark, setRemark] = useState(investment?.remark ?? '')
   const [contributionHeadIds, setContributionHeadIds] = useState<string[]>(
@@ -177,6 +200,8 @@ export function InvestmentForm({
     investment?.returnHeads.map((h) => h.headId) ?? [],
   )
   const [error, setError] = useState<string | null>(null)
+
+  const words = wordingFor(kind)
 
   // The two sides come from the two ledgers: money in is spending, money back is income.
   const { data: expenseCategories } = useQuery({
@@ -192,6 +217,8 @@ export function InvestmentForm({
     mutationFn: () => {
       const request = {
         name: name.trim(),
+        kind,
+        counterparty: kind === 'Lend' ? counterparty.trim() || null : null,
         remark: remark.trim() || null,
         startedOn,
         contributionHeadIds,
@@ -218,18 +245,55 @@ export function InvestmentForm({
         mutation.mutate()
       }}
     >
+      {/* The kind is chosen first because every label below it changes. */}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-ink-soft">Which is it?</span>
+        <div role="tablist" className="flex gap-1 rounded-lg bg-raised p-1">
+          {(['Investment', 'Lend'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={kind === option}
+              onClick={() => setKind(option)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                kind === option
+                  ? 'bg-card text-brand-700 shadow-sm dark:text-brand-300'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {option === 'Lend' ? 'Money I lent out' : 'An investment'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-ink-soft">What is it?</span>
+        <span className="text-xs font-medium text-ink-soft">{words.nameLabel}</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Shares, a shop, a plot of land"
+          placeholder={words.namePlaceholder}
           className={field}
         />
       </label>
 
+      {kind === 'Lend' && (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-ink-soft">Who did you lend it to?</span>
+          <input
+            value={counterparty}
+            onChange={(e) => setCounterparty(e.target.value)}
+            placeholder="A name, so you remember who owes you"
+            className={field}
+          />
+        </label>
+      )}
+
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-ink-soft">Started when?</span>
+        <span className="text-xs font-medium text-ink-soft">
+          {kind === 'Lend' ? 'Lent when?' : 'Started when?'}
+        </span>
         <input
           type="date"
           value={startedOn}
@@ -249,31 +313,26 @@ export function InvestmentForm({
       </label>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-ink-soft">Where the money goes in</span>
-        <p className="text-xs text-ink-muted">
-          Spending heads. <strong className="font-medium text-ink-soft">Every</strong> expense
-          on these counts as money invested, so don't use them for anything else.
-        </p>
+        <span className="text-xs font-medium text-ink-soft">{words.outHeads}</span>
+        <p className="text-xs text-ink-muted">{words.outHeadsHint}</p>
         <HeadMultiSelect
           categories={expenseCategories ?? []}
           value={contributionHeadIds}
           onChange={setContributionHeadIds}
           placeholder="Add a spending head…"
-          emptyHint="Nothing linked yet — no money will be counted as invested."
+          emptyHint={words.outHeadsEmpty}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-ink-soft">Where the returns come back</span>
-        <p className="text-xs text-ink-muted">
-          Income heads. Anything you log on these counts as money coming back out of it.
-        </p>
+        <span className="text-xs font-medium text-ink-soft">{words.backHeads}</span>
+        <p className="text-xs text-ink-muted">{words.backHeadsHint}</p>
         <HeadMultiSelect
           categories={incomeCategories ?? []}
           value={returnHeadIds}
           onChange={setReturnHeadIds}
           placeholder="Add an income head…"
-          emptyHint="Nothing linked yet — returns won't be counted until you link one."
+          emptyHint={words.backHeadsEmpty}
         />
       </div>
 
@@ -281,7 +340,13 @@ export function InvestmentForm({
 
       <div className="flex gap-2">
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving…' : investment ? 'Save changes' : 'Add investment'}
+          {mutation.isPending
+            ? 'Saving…'
+            : investment
+              ? 'Save changes'
+              : kind === 'Lend'
+                ? 'Add it'
+                : 'Add investment'}
         </Button>
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel

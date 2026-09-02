@@ -1,5 +1,24 @@
 namespace ExpenseTracker019.Api.Models;
 
+/// <summary>
+/// Whether money put out is an investment or a loan to someone else.
+/// </summary>
+/// <remarks>
+/// The arithmetic is identical — money goes out, money comes back, and the ring tracks how
+/// much of it you have recouped — so both live on one entity rather than in two near-copies
+/// of the same screen. Only the wording and the grouping follow this.
+///
+/// `Investment` is 0 so that existing rows, written before this column, land on it.
+/// </remarks>
+public enum InvestmentKind
+{
+    /// <summary>Capital put into something.</summary>
+    Investment = 0,
+
+    /// <summary>Money lent to someone, expected back.</summary>
+    Lend = 1,
+}
+
 /// <summary>Which side of an investment a linked head sits on.</summary>
 public enum InvestmentDirection
 {
@@ -30,7 +49,15 @@ public class Investment
 
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Why you put money in. Free text.</summary>
+    public InvestmentKind Kind { get; set; }
+
+    /// <summary>
+    /// Who you lent it to. Only meaningful for <see cref="InvestmentKind.Lend"/>; an
+    /// investment has no counterparty worth naming beyond its own name.
+    /// </summary>
+    public string? Counterparty { get; set; }
+
+    /// <summary>Why you put money in, or why you lent it. Free text.</summary>
     public string? Remark { get; set; }
 
     /// <summary>

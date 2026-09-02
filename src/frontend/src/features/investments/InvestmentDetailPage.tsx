@@ -15,6 +15,7 @@ import PeriodBars from '../../components/charts/PeriodBars'
 import { LEFT_COLOR, OVER_COLOR, SPENT_COLOR } from '../../components/charts/colors'
 import { card, emptyState, eyebrow, pageTitle } from '../../components/ui'
 import { InvestmentForm } from './InvestmentsPage'
+import { wordingFor } from './wording'
 
 const PAGE_SIZE = 20
 
@@ -67,6 +68,7 @@ export default function InvestmentDetailPage() {
   if (!detail) return <p className={emptyState}>That investment is no longer here.</p>
 
   const investment = detail.investment
+  const words = wordingFor(investment.kind)
   const shown: InvestmentTransaction[] = filtered
     ? (transactions.data?.pages.flatMap((p) => p.items) ?? [])
     : detail.recentTransactions
@@ -77,9 +79,12 @@ export default function InvestmentDetailPage() {
     <div className="flex flex-col gap-4">
       <div>
         <Link to="/investments" className="text-xs text-ink-muted hover:text-ink">
-          ‹ Investments
+          ‹ Investments &amp; lending
         </Link>
         <h1 className={pageTitle}>{investment.name}</h1>
+        {investment.counterparty && (
+          <p className="text-sm text-ink-muted">to {investment.counterparty}</p>
+        )}
       </div>
 
       {editing ? (
@@ -96,14 +101,14 @@ export default function InvestmentDetailPage() {
           )}
 
           <section className={`${card} p-4`}>
-            <h2 className={`${eyebrow} mb-2`}>Put in each cycle</h2>
+            <h2 className={`${eyebrow} mb-2`}>{words.outEachCycle}</h2>
             <PeriodBars
               buckets={(byPeriod ?? []).map((p) => ({ label: p.label, amount: p.amount }))}
               color={SPENT_COLOR}
-              emptyLabel="Nothing put in during the cycles shown."
+              emptyLabel={`Nothing ${words.outEntry} during the cycles shown.`}
             />
 
-            <h2 className={`${eyebrow} mb-2 mt-4`}>Came back each cycle</h2>
+            <h2 className={`${eyebrow} mb-2 mt-4`}>{words.backEachCycle}</h2>
             <PeriodBars
               buckets={(byPeriod ?? []).map((p) => ({
                 label: p.label,
@@ -150,7 +155,7 @@ export default function InvestmentDetailPage() {
                           {t.categoryName} › {t.headName}
                         </span>
                         <span className="block text-xs text-ink-muted">
-                          {t.date} · {isReturn ? 'came back' : 'put in'}
+                          {t.date} · {isReturn ? words.backEntry : words.outEntry}
                           {t.note && ` · ${t.note}`}
                         </span>
                       </span>
@@ -225,6 +230,7 @@ export default function InvestmentDetailPage() {
 
 function InvestmentSummary({ investment }: { investment: Investment }) {
   const { format } = useMoney()
+  const words = wordingFor(investment.kind)
 
   return (
     <section className={`${card} p-4`}>
@@ -233,16 +239,16 @@ function InvestmentSummary({ investment }: { investment: Investment }) {
             found its way back. */}
         <TwoSliceDonut
           size={132}
-          first={{ label: 'Returned', value: investment.returned, color: LEFT_COLOR }}
+          first={{ label: words.back, value: investment.returned, color: LEFT_COLOR }}
           second={{
-            label: 'Still out',
+            label: words.remaining,
             value: investment.outstanding,
             color: investment.isRecouped ? LEFT_COLOR : OVER_COLOR,
           }}
           centre={
             <span>
               <span className={`${eyebrow} block`}>
-                {investment.isRecouped ? 'Gained' : 'Still out'}
+                {investment.isRecouped ? words.surplus : words.remaining}
               </span>
               <span
                 className={`block text-sm font-semibold tabular-nums ${
@@ -258,11 +264,11 @@ function InvestmentSummary({ investment }: { investment: Investment }) {
         />
 
         <dl className="flex min-w-0 flex-1 flex-col gap-2">
-          <LegendRow label="Put in" value={format(investment.invested)} />
-          <LegendRow swatch={LEFT_COLOR} label="Come back" value={format(investment.returned)} />
+          <LegendRow label={words.out} value={format(investment.invested)} />
+          <LegendRow swatch={LEFT_COLOR} label={words.back} value={format(investment.returned)} />
           <LegendRow
             swatch={investment.isRecouped ? LEFT_COLOR : OVER_COLOR}
-            label={investment.isRecouped ? 'Gain' : 'Still out'}
+            label={investment.isRecouped ? words.surplus : words.remaining}
             value={format(investment.isRecouped ? investment.gain : investment.outstanding)}
             emphasis
           />
@@ -271,10 +277,10 @@ function InvestmentSummary({ investment }: { investment: Investment }) {
 
       <p className="mt-3 border-t border-line-soft pt-3 text-xs text-ink-muted">
         {investment.invested === 0
-          ? `Nothing put in yet · started ${investment.startedOn}`
+          ? words.nothingYet(investment.startedOn)
           : investment.isRecouped
-            ? `You have your money back, and ${format(investment.gain)} on top.`
-            : `${investment.percentReturned}% of it has come back · started ${investment.startedOn}`}
+            ? words.recouped(format(investment.gain))
+            : words.progress(investment.percentReturned, investment.startedOn)}
       </p>
     </section>
   )

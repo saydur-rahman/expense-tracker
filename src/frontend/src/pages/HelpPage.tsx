@@ -41,7 +41,7 @@ export default function HelpPage() {
           <strong className="font-medium text-ink">Expenses</strong> and{' '}
           <strong className="font-medium text-ink">Income</strong> — and everything else
           lives behind <strong className="font-medium text-ink">More</strong>: budgets,
-          categories, loans, investments, your settings and this page.
+          categories, loans, investments and lending, your settings and this page.
         </p>
       </section>
 
@@ -234,12 +234,12 @@ export default function HelpPage() {
 
       <Step
         n={6}
-        title="Track a loan or an investment"
+        title="Track a loan, an investment, or money you lent"
         where={
           <>
             <Link className="underline hover:text-ink" to="/loans">Loans</Link>
             {' and '}
-            <Link className="underline hover:text-ink" to="/investments">Investments</Link>
+            <Link className="underline hover:text-ink" to="/investments">Investments &amp; lending</Link>
             {' — both under More'}
           </>
         }
@@ -277,8 +277,20 @@ export default function HelpPage() {
           sides.</strong> Link the spending heads you pay into it through, and the income
           head your returns arrive on. The ring then shows how much of what you put in has
           found its way back — red while your money is still out there, green as it returns,
-          and anything past that is your gain. The Investments screen also shows what share
-          of this cycle's income you put in.
+          and anything past that is your gain.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">Money you lend someone lives on the same
+          screen</strong>, because it is the same sum: it goes out, and you want to know how
+          much has come back. When you add one, say whether it is an investment or something
+          you lent, and put the person's name on it. Everything after that reads in the right
+          words — <em>lent</em> and <em>paid back</em> rather than <em>put in</em> and{' '}
+          <em>come back</em> — and the two are listed under their own headings.
+        </p>
+        <p>
+          The <strong className="font-medium text-ink">invested against income</strong> figure
+          at the top counts investments only. Lending a friend money is not investing, and
+          mixing the two would make that percentage mean nothing.
         </p>
         <p className="text-ink-muted">
           Nothing here changes your budget or your totals. A repayment is still an ordinary

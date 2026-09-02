@@ -210,8 +210,8 @@ on read. An investment carries no amount at all — both sides are derived.
 | GET | `/api/loans/{id}/by-period?count=12` | Per-cycle payment totals. **Computes** the windows — creates no `BudgetPeriod` rows |
 | POST/PUT | `/api/loans` · `/api/loans/{id}` | `headIds` replaces the linked set wholesale |
 | DELETE | `/api/loans/{id}` | The expenses are untouched |
-| GET | `/api/investments` | Adds `invested`, `returned`, `percentReturned`, `gain`, `isRecouped`, and the two head groups |
-| GET | `/api/investments/vs-income?periodId=` | Invested against all income for that cycle |
+| GET | `/api/investments` | Adds `kind` (`Investment`/`Lend`), `counterparty`, `invested`, `returned`, `percentReturned`, `gain`, `isRecouped`, and the two head groups. Ordered investments first, then lends |
+| GET | `/api/investments/vs-income?periodId=` | Invested against all income for that cycle. **Counts `Investment` entries only** — lending a friend money is not investing, and mixing the two would make the percentage meaningless |
 | *(the same four sub-resources as loans)* | | `by-period` carries returns in `secondaryAmount` |
 
 **Rejections to expect.** 400 on a head of the wrong kind (a loan's heads and an

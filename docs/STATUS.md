@@ -180,6 +180,16 @@ All of the following were exercised against **live running services**, not just 
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
 
+**Lending sits alongside investing (added 2026-09-02)**
+- Money you lend someone is the *same sum* as an investment — it goes out, it comes back, and the ring tracks how much you have recouped — so it shares one entity, one service and one screen rather than a third near-copy of the same code
+- `InvestmentKind` (`Investment` = 0, `Lend` = 1) plus a `Counterparty` for who owes you. **Only the wording and the grouping follow it**; not one line of arithmetic branches on it
+- All the wording lives in `features/investments/wording.ts` as two objects behind `wordingFor(kind)` — *put in / come back / still out / gain* against *lent / paid back / still owed / extra*, and the field labels, picker hints, chart headings and row captions with them. The alternative was ternaries scattered through two pages
+- **The invested-against-income split counts investments only.** Lending a friend money is not investing, and folding it in would make "what share of my income did I invest" mean nothing. Verified: a 500 lend showed `Invested NZ$0.00` while the card still had the income
+- Screen renamed **Investments & lending**, in the nav and the page
+- **The migration adds `Kind` with `defaultValue: 0`**, so rows written before it land on `Investment` — which is the CLR default too, so no `HasDefaultValue`/`ValueGeneratedNever` pair was needed and the enum trap does not apply. `Counterparty` is nullable
+- Verified in a browser: the kind toggle re-labels the whole form live (*What was it for?*, *Who did you lend it to?*, *Lent when?*, *Where the money went out*, *Where repayments arrive*, and even the two picker hints); a 500 lend with 300 back read "Rent bond · Rahim · NZ$200.00 still owed", the ring 60% green with "60% paid back · lent from 2026-09-02", the charts "Lent each cycle" / "Paid back each cycle", and the entries *lent* and *paid back*
+- The group headings only appear once both kinds are actually in use — a heading over a single group is noise
+
 **Personal loans and investments, and a menu that can grow (added 2026-09-02)**
 - Two new screens, both **views over the ledgers rather than a third ledger**. You already logged a repayment as an expense; a loan turns those expenses into "you owe 11,500 and here is every payment"
 - **Balances are computed on read, never stored** — a SUM over the expenses on the linked heads. Storing a running total would have meant `ExpenseService`'s create, update *and* delete paths maintaining it, and it would drift the first time an old row was edited. Recorded as rule 9 in `AGENTS.md`

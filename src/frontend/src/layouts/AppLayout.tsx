@@ -18,7 +18,7 @@ const baseMoreNavItems: NavItem[] = [
   { to: '/budgets', label: 'Budgets' },
   { to: '/categories', label: 'Categories' },
   { to: '/loans', label: 'Loans' },
-  { to: '/investments', label: 'Investments' },
+  { to: '/investments', label: 'Investments & lending' },
   { to: '/settings', label: 'Settings' },
   { to: '/help', label: 'Help' },
 ]
