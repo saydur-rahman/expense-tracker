@@ -14,8 +14,7 @@ import TwoSliceDonut from '../../components/charts/TwoSliceDonut'
 import LegendRow from '../../components/charts/LegendRow'
 import { LEFT_COLOR, SPENT_COLOR } from '../../components/charts/colors'
 import { card, emptyState, field, eyebrow, pageTitle } from '../../components/ui'
-
-const today = () => new Date().toISOString().slice(0, 10)
+import { todayLocal } from '../../lib/dates'
 
 export default function InvestmentsPage() {
   const [adding, setAdding] = useState(false)
@@ -169,7 +168,7 @@ export function InvestmentForm({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState(investment?.name ?? '')
-  const [startedOn, setStartedOn] = useState(investment?.startedOn ?? today())
+  const [startedOn, setStartedOn] = useState(investment?.startedOn ?? todayLocal())
   const [remark, setRemark] = useState(investment?.remark ?? '')
   const [contributionHeadIds, setContributionHeadIds] = useState<string[]>(
     investment?.contributionHeads.map((h) => h.headId) ?? [],

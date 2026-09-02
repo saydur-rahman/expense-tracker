@@ -11,8 +11,7 @@ import HeadMultiSelect from '../../components/HeadMultiSelect'
 import ProgressBar from '../../components/charts/ProgressBar'
 import { amountValue } from '../../lib/calc'
 import { card, emptyState, field, pageTitle } from '../../components/ui'
-
-const today = () => new Date().toISOString().slice(0, 10)
+import { todayLocal } from '../../lib/dates'
 
 export default function LoansPage() {
   const [adding, setAdding] = useState(false)
@@ -108,7 +107,7 @@ export function LoanForm({
   const [name, setName] = useState(loan?.name ?? '')
   const [lender, setLender] = useState(loan?.lender ?? '')
   const [amount, setAmount] = useState(loan ? String(loan.amountTaken) : '')
-  const [takenOn, setTakenOn] = useState(loan?.takenOn ?? today())
+  const [takenOn, setTakenOn] = useState(loan?.takenOn ?? todayLocal())
   const [remark, setRemark] = useState(loan?.remark ?? '')
   const [headIds, setHeadIds] = useState<string[]>(loan?.heads.map((h) => h.headId) ?? [])
   const [error, setError] = useState<string | null>(null)
