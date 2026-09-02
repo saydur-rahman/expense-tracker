@@ -180,6 +180,15 @@ All of the following were exercised against **live running services**, not just 
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
 
+**Google always asks which account to use (changed 2026-09-02)**
+- Reported by the owner: the browser picks their default Google account automatically, with no way to sign in as anyone else — or to retry as someone different after a failed attempt, which is when you most need it
+- `prompt=select_account` is on the external challenge again (`Pages/Account/Login.cshtml.cs`). It had been **removed** on 2026-08-30 with a "don't re-add it" note, on the grounds that Google shows its own chooser when several accounts are signed in. **It does not** — with one signed-in account it goes straight through, silently
+- Both were right about different things. The 30 Aug removal was correct for the *logout* complaint, which was really the SPA bouncing itself into a fresh sign-in from a protected landing page; that fix stands. Account choice is a separate concern and needs the parameter
+- The cost is one extra click for someone with a single Google account — a deliberate trade
+- **The challenge URL was captured and checked.** Throwaway Google credentials were set in user-secrets just long enough to make the provider configured, the external-login POST was made without following the redirect, and its `Location` header ends `…&prompt=select_account`. The credentials were removed straight afterwards — `dotnet user-secrets list` is back to the admin seed alone
+- What is still unverified is Google's own behaviour on the far side of that redirect, since real credentials have never been configured (gap 2). The parameter is provably sent; that Google honours it is documented behaviour, not something exercised here
+- The `AGENTS.md` note that said the challenge deliberately sends no `prompt` is corrected, since it now says the opposite of the code
+
 **Lending sits alongside investing (added 2026-09-02)**
 - Money you lend someone is the *same sum* as an investment — it goes out, it comes back, and the ring tracks how much you have recouped — so it shares one entity, one service and one screen rather than a third near-copy of the same code
 - `InvestmentKind` (`Investment` = 0, `Lend` = 1) plus a `Counterparty` for who owes you. **Only the wording and the grouping follow it**; not one line of arithmetic branches on it
@@ -249,7 +258,7 @@ All of the following were exercised against **live running services**, not just 
 **Logout actually ends the session (fixed 2026-08-30)**
 Three separate defects, found by reproducing the reported "it keeps coming back as the previous session":
 - **The landing page was protected.** `post_logout_redirect_uri` was `/`, which sits inside `ProtectedRoute` — so signing out immediately started a *new* sign-in. New public `/signed-out` page; the URI is registered in `AuthSeeder` alongside the old one
-- **Google silently re-authenticated**, which is why it came back as the *same* account. This turned out to be a symptom of the point above, not a defect: `prompt=select_account` was tried as a mitigation and then **removed** on 2026-08-30 — someone already signed in to Google should go straight through, and Google shows its own chooser when several accounts are signed in. Don't re-add it
+- **Google silently re-authenticated**, which is why it came back as the *same* account. That was a symptom of the point above rather than a defect in itself, so `prompt=select_account` was removed on 2026-08-30. **It is back as of 2026-09-02** — see the entry above: the claim that Google shows its own chooser is simply not true with a single signed-in account. Removing it was right for the logout problem and wrong for account choice, which are two different things
 - **The refresh token survived logout** — a real security bug, not a symptom. Dropping the cookie left every issued refresh token redeemable, so anything holding one could keep minting access tokens after the user logged out. `Logout()` now revokes the user's tokens via `IOpenIddictTokenManager`, the same way deactivation does
 - Verified against live services: the cookie is cleared, the next authorize demands a fresh login, the refresh token is rejected, `prompt=select_account` is sent, and `/signed-out` renders
 - **Note:** logout now revokes that user's tokens everywhere, so it signs them out on their other devices too

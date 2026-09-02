@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Auth019.Models;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -91,15 +92,20 @@ public class LoginModel : PageModel
         var redirectUrl = Url.Page("./ExternalLogin", pageHandler: "Callback", values: new { ReturnUrl });
         var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
 
-        // Deliberately no `prompt` parameter. Someone already signed in to Google
-        // should go straight through on the account they are using; Google shows its
-        // own chooser anyway when more than one account is signed in.
+        // Always ask Google which account to use. Without this it silently reuses whichever
+        // account the browser is already signed in to, and there is then no way to sign in
+        // as anyone else — or to pick a different one after a failed attempt, which is when
+        // you need it most.
         //
-        // Don't add `prompt=select_account` to make logout look convincing — that was
-        // tried, and it fixes the wrong thing. Logout is honest because it lands on
-        // the public /signed-out page and revokes the user's tokens; the silent
-        // re-authentication people mistook for a broken logout was the SPA bouncing
-        // itself into a fresh sign-in from a protected landing page.
+        // This was tried once before as a fix for logout "coming back as the same session",
+        // and removed on the grounds that Google shows its own chooser anyway. It does not:
+        // with a single signed-in account it goes straight through, silently. Removing it
+        // was right for the reason it was added and wrong for this one.
+        //
+        // The cost is one extra click for someone with a single Google account. That is the
+        // trade being made deliberately.
+        properties.SetParameter(GoogleChallengeProperties.PromptParameterKey, "select_account");
+
         return Challenge(properties, provider);
     }
 
