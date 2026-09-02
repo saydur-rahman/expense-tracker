@@ -8,6 +8,7 @@ import { useMoney } from '../../lib/money'
 import Button from '../../components/Button'
 import AmountField from '../../components/AmountField'
 import HeadMultiSelect from '../../components/HeadMultiSelect'
+import LinkedHeadWarning from '../../components/LinkedHeadWarning'
 import ProgressBar from '../../components/charts/ProgressBar'
 import { amountValue } from '../../lib/calc'
 import { card, emptyState, field, pageTitle } from '../../components/ui'
@@ -206,6 +207,13 @@ export function LoanForm({
           value={headIds}
           onChange={setHeadIds}
           emptyHint="Nothing linked yet — the loan will sit at its full amount until you link a head."
+        />
+        <LinkedHeadWarning
+          headIds={headIds}
+          from={takenOn}
+          ledger="Expense"
+          categories={categories ?? []}
+          counts="count as repayments"
         />
       </div>
 

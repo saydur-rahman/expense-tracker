@@ -8,6 +8,7 @@ import { ApiError } from '../../api/client'
 import { useMoney } from '../../lib/money'
 import Button from '../../components/Button'
 import HeadMultiSelect from '../../components/HeadMultiSelect'
+import LinkedHeadWarning from '../../components/LinkedHeadWarning'
 import PeriodPicker from '../../components/PeriodPicker'
 import ProgressBar from '../../components/charts/ProgressBar'
 import TwoSliceDonut from '../../components/charts/TwoSliceDonut'
@@ -322,6 +323,13 @@ export function InvestmentForm({
           placeholder="Add a spending head…"
           emptyHint={words.outHeadsEmpty}
         />
+        <LinkedHeadWarning
+          headIds={contributionHeadIds}
+          from={startedOn}
+          ledger="Expense"
+          categories={expenseCategories ?? []}
+          counts={kind === 'Lend' ? 'count as money lent' : 'count as money invested'}
+        />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -333,6 +341,13 @@ export function InvestmentForm({
           onChange={setReturnHeadIds}
           placeholder="Add an income head…"
           emptyHint={words.backHeadsEmpty}
+        />
+        <LinkedHeadWarning
+          headIds={returnHeadIds}
+          from={startedOn}
+          ledger="Income"
+          categories={incomeCategories ?? []}
+          counts={kind === 'Lend' ? 'count as repayments to you' : 'count as returns'}
         />
       </div>
 

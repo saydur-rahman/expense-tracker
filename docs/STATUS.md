@@ -180,6 +180,13 @@ All of the following were exercised against **live running services**, not just 
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
 
+**Linking a head says what it is about to sweep in (added 2026-09-02)**
+- Raised by the owner: link a head that already has transactions and those transactions count too. True, and it is the direct consequence of "every expense on a linked head counts" — mitigated already by the floor at the loan's `TakenOn` (an investment's `StartedOn`), so nothing from before the thing existed was ever included
+- **The behaviour is right; the surprise was the problem.** It is what you want when the head has always been for this loan, and wrong only when the head was used for ordinary spending in between. So it now says so before you save, while the date and the links are both still in reach: how many entries, how much, and since when, per head
+- Rejected: counting only from the moment you link (a loan taken in January and set up in March would silently lose January and February's real repayments) and a per-head "count from" date (full control, but one more thing to get right during setup)
+- **No new endpoint and no backend change.** The expenses and incomes lists already return a server-computed `totalCount` and `totalAmount` for any head-and-date filter, so `pageSize: 1` fetches the whole answer. `components/LinkedHeadWarning.tsx` is shared by the loan form and both sides of the investment form, with the wording following the kind
+- Seen in a browser: linking a head with one NZ$500 expense to a loan dated 2026-09-01 showed "Food › Groceries — 1 expense totalling NZ$500.00 since 2026-09-01", and Cancel left the loan untouched at its original two heads
+
 **Google always asks which account to use (changed 2026-09-02)**
 - Reported by the owner: the browser picks their default Google account automatically, with no way to sign in as anyone else — or to retry as someone different after a failed attempt, which is when you most need it
 - `prompt=select_account` is on the external challenge again (`Pages/Account/Login.cshtml.cs`). It had been **removed** on 2026-08-30 with a "don't re-add it" note, on the grounds that Google shows its own chooser when several accounts are signed in. **It does not** — with one signed-in account it goes straight through, silently
