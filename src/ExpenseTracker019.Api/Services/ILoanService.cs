@@ -13,6 +13,9 @@ public class LoanTransactionQuery
 public interface ILoanService
 {
     Task<List<LoanDto>> ListAsync(Guid userId);
+
+    /// <summary>Every loan added up, plus what was paid in one cycle.</summary>
+    Task<LoanPortfolioDto> GetPortfolioAsync(Guid userId, Guid periodId);
     Task<LoanDetailDto> GetAsync(Guid userId, Guid loanId);
     Task<LoanTransactionListDto> ListTransactionsAsync(Guid userId, Guid loanId, LoanTransactionQuery query);
     Task<IReadOnlyList<PeriodTotalDto>> ListByPeriodAsync(Guid userId, Guid loanId, int count);

@@ -6,6 +6,9 @@ namespace ExpenseTracker019.Api.Services;
 public interface IInvestmentService
 {
     Task<List<InvestmentDto>> ListAsync(Guid userId);
+
+    /// <summary>Investments and lendings added up, plus what moved in one cycle.</summary>
+    Task<InvestmentPortfolioDto> GetPortfolioAsync(Guid userId, Guid periodId);
     Task<InvestmentDetailDto> GetAsync(Guid userId, Guid investmentId);
     Task<InvestmentTransactionListDto> ListTransactionsAsync(
         Guid userId, Guid investmentId, LoanTransactionQuery query);

@@ -1,21 +1,37 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { loansApi, type Loan } from '../../api/loans'
+import { loansApi, type Loan, type LoanPortfolio } from '../../api/loans'
 import { categoriesApi } from '../../api/categories'
+import { budgetPeriodsApi } from '../../api/settings'
 import { ApiError } from '../../api/client'
 import { useMoney } from '../../lib/money'
 import Button from '../../components/Button'
 import AmountField from '../../components/AmountField'
 import HeadMultiSelect from '../../components/HeadMultiSelect'
+import LinkedHeadWarning from '../../components/LinkedHeadWarning'
 import ProgressBar from '../../components/charts/ProgressBar'
+import PeriodPicker from '../../components/PeriodPicker'
 import { amountValue } from '../../lib/calc'
-import { card, emptyState, field, pageTitle } from '../../components/ui'
+import { card, emptyState, field, eyebrow, pageTitle } from '../../components/ui'
 import { todayLocal } from '../../lib/dates'
 
 export default function LoansPage() {
   const [adding, setAdding] = useState(false)
+  const [offset, setOffset] = useState(0)
+
   const { data: loans, isLoading } = useQuery({ queryKey: ['loans'], queryFn: loansApi.list })
+
+  const { data: period } = useQuery({
+    queryKey: ['budget-period', offset],
+    queryFn: () => budgetPeriodsApi.relative(offset),
+  })
+
+  const { data: portfolio } = useQuery({
+    queryKey: ['loans', 'portfolio', period?.id],
+    queryFn: () => loansApi.portfolio(period!.id),
+    enabled: !!period,
+  })
 
   return (
     <div className="flex flex-col gap-4">
@@ -25,6 +41,10 @@ export default function LoansPage() {
           What you borrowed, and how much of it you have paid back.
         </p>
       </div>
+
+      <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
+
+      {portfolio && portfolio.count > 0 && <LoanTotals portfolio={portfolio} />}
 
       {adding ? (
         <LoanForm onDone={() => setAdding(false)} />
@@ -45,6 +65,60 @@ export default function LoansPage() {
         {loans?.map((loan) => <LoanCard key={loan.id} loan={loan} />)}
       </div>
     </div>
+  )
+}
+
+/**
+ * Everything owed, in one place. The period picker above changes only the last line —
+ * the balance is the balance whichever cycle you happen to be looking at.
+ */
+function LoanTotals({ portfolio }: { portfolio: LoanPortfolio }) {
+  const { format } = useMoney()
+
+  return (
+    <section className={`${card} p-4`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <span>
+          <span className={`${eyebrow} block`}>Still owed</span>
+          <span className="block text-xl font-semibold tabular-nums text-negative-600 dark:text-negative-400">
+            {format(portfolio.outstanding)}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={`${eyebrow} block`}>Borrowed</span>
+          <span className="block text-lg font-semibold tabular-nums text-ink">
+            {format(portfolio.borrowed)}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={`${eyebrow} block`}>Repaid</span>
+          <span className="block text-lg font-semibold tabular-nums text-positive-700 dark:text-positive-400">
+            {format(portfolio.repaid)}
+          </span>
+        </span>
+      </div>
+
+      <ProgressBar
+        value={portfolio.repaid}
+        total={portfolio.borrowed}
+        fill="bg-positive-600"
+        overFill="bg-positive-600"
+      />
+
+      <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line-soft pt-2 text-xs text-ink-muted">
+        <span>
+          {portfolio.percentSettled}% paid off
+          {portfolio.settledCount > 0 &&
+            ` · ${portfolio.settledCount} of ${portfolio.count} settled`}
+        </span>
+        <span>
+          Paid in {portfolio.periodLabel}{' '}
+          <strong className="font-semibold tabular-nums text-ink">
+            {format(portfolio.paidInPeriod)}
+          </strong>
+        </span>
+      </p>
+    </section>
   )
 }
 
@@ -132,7 +206,6 @@ export function LoanForm({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loans'] })
-      if (loan) queryClient.invalidateQueries({ queryKey: ['loan', loan.id] })
       onDone()
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
@@ -206,6 +279,13 @@ export function LoanForm({
           value={headIds}
           onChange={setHeadIds}
           emptyHint="Nothing linked yet — the loan will sit at its full amount until you link a head."
+        />
+        <LinkedHeadWarning
+          headIds={headIds}
+          from={takenOn}
+          ledger="Expense"
+          categories={categories ?? []}
+          counts="count as repayments"
         />
       </div>
 

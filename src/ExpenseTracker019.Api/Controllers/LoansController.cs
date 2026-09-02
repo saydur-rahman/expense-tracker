@@ -23,6 +23,11 @@ public class LoansController : ControllerBase
     public async Task<ActionResult<List<LoanDto>>> List()
         => Ok(await _loanService.ListAsync(_currentUser.Id));
 
+    /// <summary>Every loan added up, plus what was paid in that cycle.</summary>
+    [HttpGet("portfolio")]
+    public async Task<ActionResult<LoanPortfolioDto>> Portfolio([FromQuery] Guid periodId)
+        => Ok(await _loanService.GetPortfolioAsync(_currentUser.Id, periodId));
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<LoanDetailDto>> Get(Guid id)
         => Ok(await _loanService.GetAsync(_currentUser.Id, id));

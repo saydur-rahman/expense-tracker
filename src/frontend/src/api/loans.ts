@@ -60,6 +60,21 @@ export interface PeriodTotal {
   secondaryAmount: number
 }
 
+export interface LoanPortfolio {
+  periodLabel: string
+  startDate: string
+  endDate: string
+  count: number
+  settledCount: number
+  borrowed: number
+  repaid: number
+  /** Still owed across every loan. */
+  outstanding: number
+  /** Paid in this cycle alone — what the period picker changes. */
+  paidInPeriod: number
+  percentSettled: number
+}
+
 export interface SaveLoanRequest {
   name: string
   lender: string | null
@@ -87,6 +102,8 @@ function query(filters: TransactionFilters) {
 
 export const loansApi = {
   list: () => apiClient.get<Loan[]>('/api/loans'),
+  portfolio: (periodId: string) =>
+    apiClient.get<LoanPortfolio>(`/api/loans/portfolio?periodId=${periodId}`),
   get: (id: string) => apiClient.get<LoanDetail>(`/api/loans/${id}`),
   transactions: (id: string, filters: TransactionFilters = {}) =>
     apiClient.get<LoanTransactionList>(`/api/loans/${id}/transactions?${query(filters)}`),

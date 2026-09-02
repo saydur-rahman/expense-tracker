@@ -190,6 +190,8 @@ target, negative that much **short** of it, and null when there is nothing to co
 **Rejections to expect (400):** a negative amount. Nothing else — heads over or under the
 target are reported through `difference`, never refused.
 
+`outstanding` on both portfolio endpoints is summed **per entry**, not as `borrowed − repaid`: one overpaid loan must not quietly cancel out what is still owed on another.
+
 **No period totals here.** They used to be (`totalIncome`, `totalBudgeted`) so the budgeting
 screen could avoid a second call. It now reads the same `/api/reports/summary` the dashboard
 does, because the two screens draw the same overview strip and had to agree to the cent —
@@ -205,12 +207,14 @@ on read. An investment carries no amount at all — both sides are derived.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/loans` | Each loan with `repaid`, `outstanding`, `percentSettled`, `overpaid`, `isSettled` and its linked heads |
+| GET | `/api/loans/portfolio?periodId=` | Every loan added up — `borrowed`, `repaid`, `outstanding`, `percentSettled`, `settledCount` — plus `paidInPeriod`, the only figure the cycle changes |
 | GET | `/api/loans/{id}` | The loan, its **20 most recent** payments, and the total count |
 | GET | `/api/loans/{id}/transactions?from&to&page&pageSize` | Paged and date-filtered. `pageSize` defaults to 20, capped at 100 |
 | GET | `/api/loans/{id}/by-period?count=12` | Per-cycle payment totals. **Computes** the windows — creates no `BudgetPeriod` rows |
 | POST/PUT | `/api/loans` · `/api/loans/{id}` | `headIds` replaces the linked set wholesale |
 | DELETE | `/api/loans/{id}` | The expenses are untouched |
 | GET | `/api/investments` | Adds `kind` (`Investment`/`Lend`), `counterparty`, `invested`, `returned`, `percentReturned`, `gain`, `isRecouped`, and the two head groups. Ordered investments first, then lends |
+| GET | `/api/investments/portfolio?periodId=` | Both kinds added up, **always both groups in order** so the screen renders one shape either way: `out`, `back`, `outstanding`, `surplus`, `percentBack`, `count`, `recoupedCount`, plus `outInPeriod`/`backInPeriod` for the cycle |
 | GET | `/api/investments/vs-income?periodId=` | Invested against all income for that cycle. **Counts `Investment` entries only** — lending a friend money is not investing, and mixing the two would make the percentage meaningless |
 | *(the same four sub-resources as loans)* | | `by-period` carries returns in `secondaryAmount` |
 

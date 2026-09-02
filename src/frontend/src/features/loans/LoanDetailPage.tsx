@@ -25,12 +25,12 @@ export default function LoanDetailPage() {
   const [range, setRange] = useState({ from: '', to: '' })
 
   const { data: detail, isLoading } = useQuery({
-    queryKey: ['loan', id],
+    queryKey: ['loans', id],
     queryFn: () => loansApi.get(id),
   })
 
   const { data: byPeriod } = useQuery({
-    queryKey: ['loan-by-period', id],
+    queryKey: ['loans', id, 'by-period'],
     queryFn: () => loansApi.byPeriod(id),
   })
 
@@ -39,7 +39,7 @@ export default function LoanDetailPage() {
   const filtered = range.from !== '' || range.to !== ''
 
   const transactions = useInfiniteQuery({
-    queryKey: ['loan-transactions', id, range.from, range.to],
+    queryKey: ['loans', id, 'transactions', range.from, range.to],
     enabled: filtered,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>

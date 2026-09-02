@@ -263,6 +263,13 @@ export default function HelpPage() {
           Only spending from the day you took the loan onward counts.
         </p>
         <p>
+          So if you link a head that already has spending on it, that spending counts too —
+          which is what you want when the head has always been for this loan. If it isn't,
+          the form tells you before you save: it says how many entries and how much are about
+          to be swept in, and you can change the date or unlink the head. The same warning
+          appears on both sides of an investment.
+        </p>
+        <p>
           The ring starts wholly{' '}
           <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
           and fills{' '}

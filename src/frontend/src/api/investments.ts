@@ -65,6 +65,30 @@ export interface InvestmentVsIncome {
   percentOfIncome: number
 }
 
+export interface InvestmentGroupTotals {
+  kind: InvestmentKind
+  count: number
+  recoupedCount: number
+  /** Put in, or lent. */
+  out: number
+  /** Come back, or paid back. */
+  back: number
+  /** Still out, or still owed. */
+  outstanding: number
+  surplus: number
+  percentBack: number
+  outInPeriod: number
+  backInPeriod: number
+}
+
+export interface InvestmentPortfolio {
+  periodLabel: string
+  startDate: string
+  endDate: string
+  /** Always both kinds, in order. */
+  groups: InvestmentGroupTotals[]
+}
+
 export interface SaveInvestmentRequest {
   name: string
   kind: InvestmentKind
@@ -86,6 +110,8 @@ function query(filters: TransactionFilters) {
 
 export const investmentsApi = {
   list: () => apiClient.get<Investment[]>('/api/investments'),
+  portfolio: (periodId: string) =>
+    apiClient.get<InvestmentPortfolio>(`/api/investments/portfolio?periodId=${periodId}`),
   get: (id: string) => apiClient.get<InvestmentDetail>(`/api/investments/${id}`),
   vsIncome: (periodId: string) =>
     apiClient.get<InvestmentVsIncome>(`/api/investments/vs-income?periodId=${periodId}`),
