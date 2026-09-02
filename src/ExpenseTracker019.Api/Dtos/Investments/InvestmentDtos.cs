@@ -101,6 +101,45 @@ public class InvestmentVsIncomeDto
     public decimal PercentOfIncome { get; set; }
 }
 
+/// <summary>One kind's worth of totals — investments, or money lent out.</summary>
+public class InvestmentGroupTotalsDto
+{
+    public InvestmentKind Kind { get; set; }
+    public int Count { get; set; }
+    public int RecoupedCount { get; set; }
+
+    /// <summary>Put in, or lent.</summary>
+    public decimal Out { get; set; }
+
+    /// <summary>Come back, or paid back.</summary>
+    public decimal Back { get; set; }
+
+    /// <summary>Still out, or still owed. Floored at zero.</summary>
+    public decimal Outstanding { get; set; }
+
+    /// <summary>Returns beyond the capital, across the group.</summary>
+    public decimal Surplus { get; set; }
+
+    public decimal PercentBack { get; set; }
+
+    /// <summary>Went out in this cycle alone.</summary>
+    public decimal OutInPeriod { get; set; }
+
+    /// <summary>Came back in this cycle alone.</summary>
+    public decimal BackInPeriod { get; set; }
+}
+
+/// <summary>Both kinds added up, for one cycle.</summary>
+public class InvestmentPortfolioDto
+{
+    public string PeriodLabel { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+
+    /// <summary>Always both kinds, in order, so the screen renders the same shape either way.</summary>
+    public List<InvestmentGroupTotalsDto> Groups { get; set; } = new();
+}
+
 public class SaveInvestmentRequest
 {
     [Required]

@@ -50,6 +50,53 @@ public class InvestmentService : IInvestmentService
         return result;
     }
 
+    public async Task<InvestmentPortfolioDto> GetPortfolioAsync(Guid userId, Guid periodId)
+    {
+        var period = await _monthCycle.GetPeriodByIdAsync(userId, periodId);
+        var investments = await InvestmentsWithHeads(userId).ToListAsync();
+
+        var portfolio = new InvestmentPortfolioDto
+        {
+            PeriodLabel = period.Label,
+            StartDate = period.StartDate,
+            EndDate = period.EndDate,
+        };
+
+        // Both kinds always, in order, so the screen renders the same shape whether or not
+        // you happen to use one of them.
+        foreach (var kind in new[] { InvestmentKind.Investment, InvestmentKind.Lend })
+        {
+            var group = new InvestmentGroupTotalsDto { Kind = kind };
+
+            foreach (var investment in investments.Where(i => i.Kind == kind))
+            {
+                var contributions = ContributionsFor(userId, investment);
+                var returns = ReturnsFor(userId, investment);
+
+                var put = await SumExpensesAsync(contributions);
+                var back = await SumIncomesAsync(returns);
+
+                group.Count++;
+                group.Out += put;
+                group.Back += back;
+                // Per entry, so one that has paid off cannot mask another still out.
+                group.Outstanding += LoanMath.Outstanding(put, back);
+                group.Surplus += LoanMath.Overpaid(put, back);
+                if (put > 0m && LoanMath.IsSettled(put, back)) group.RecoupedCount++;
+
+                group.OutInPeriod += await SumExpensesAsync(contributions
+                    .Where(e => e.ExpenseDate >= period.StartDate && e.ExpenseDate <= period.EndDate));
+                group.BackInPeriod += await SumIncomesAsync(returns
+                    .Where(i => i.IncomeDate >= period.StartDate && i.IncomeDate <= period.EndDate));
+            }
+
+            group.PercentBack = LoanMath.PercentSettled(group.Out, group.Back);
+            portfolio.Groups.Add(group);
+        }
+
+        return portfolio;
+    }
+
     public async Task<InvestmentDetailDto> GetAsync(Guid userId, Guid investmentId)
     {
         var investment = await GetOwnedAsync(userId, investmentId);

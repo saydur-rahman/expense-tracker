@@ -39,6 +39,39 @@ public class LoanService : ILoanService
         return loans.Select(loan => ToDto(loan, repaidByLoan.GetValueOrDefault(loan.Id))).ToList();
     }
 
+    public async Task<LoanPortfolioDto> GetPortfolioAsync(Guid userId, Guid periodId)
+    {
+        var period = await _monthCycle.GetPeriodByIdAsync(userId, periodId);
+
+        var loans = await _db.Loans.Where(l => l.UserId == userId)
+            .Select(l => new { l.Id, l.AmountTaken })
+            .ToListAsync();
+
+        var repaid = await RepaidByLoanAsync(userId);
+        var paidInPeriod = await RepaidByLoanAsync(userId, period.StartDate, period.EndDate);
+
+        var borrowed = loans.Sum(l => l.AmountTaken);
+        var repaidTotal = loans.Sum(l => repaid.GetValueOrDefault(l.Id));
+
+        return new LoanPortfolioDto
+        {
+            PeriodLabel = period.Label,
+            StartDate = period.StartDate,
+            EndDate = period.EndDate,
+            Count = loans.Count,
+            SettledCount = loans.Count(l =>
+                LoanMath.IsSettled(l.AmountTaken, repaid.GetValueOrDefault(l.Id))),
+            Borrowed = borrowed,
+            Repaid = repaidTotal,
+            // Summed per loan rather than borrowed - repaid, so one overpaid loan cannot
+            // quietly cancel out what is still owed on another.
+            Outstanding = loans.Sum(l =>
+                LoanMath.Outstanding(l.AmountTaken, repaid.GetValueOrDefault(l.Id))),
+            PaidInPeriod = loans.Sum(l => paidInPeriod.GetValueOrDefault(l.Id)),
+            PercentSettled = LoanMath.PercentSettled(borrowed, repaidTotal),
+        };
+    }
+
     public async Task<LoanDetailDto> GetAsync(Guid userId, Guid loanId)
     {
         var loan = await GetOwnedAsync(userId, loanId);
@@ -193,8 +226,13 @@ public class LoanService : ILoanService
                         && e.ExpenseDate >= loan.TakenOn);
     }
 
-    /// <summary>One pass over every loan's payments, so a list of loans is not N queries.</summary>
-    private async Task<Dictionary<Guid, decimal>> RepaidByLoanAsync(Guid userId)
+    /// <summary>
+    /// One pass over every loan's payments, so a list of loans is not N queries. Bounded by
+    /// <paramref name="from"/>/<paramref name="to"/> to answer "and what about this cycle?"
+    /// with the same query rather than a second shape of it.
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> RepaidByLoanAsync(
+        Guid userId, DateOnly? from = null, DateOnly? to = null)
     {
         var links = await _db.LoanHeads
             .IgnoreQueryFilters()
@@ -220,7 +258,10 @@ public class LoanService : ILoanService
             .ToDictionary(
                 g => g.Key,
                 g => expenses
-                    .Where(e => g.Any(l => l.HeadId == e.HeadId && e.ExpenseDate >= l.TakenOn))
+                    .Where(e => (from is null || e.ExpenseDate >= from)
+                                && (to is null || e.ExpenseDate <= to)
+                                // Never before the loan itself, whatever window is asked for.
+                                && g.Any(l => l.HeadId == e.HeadId && e.ExpenseDate >= l.TakenOn))
                     .Sum(e => e.Amount));
     }
 

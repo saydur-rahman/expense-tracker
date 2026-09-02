@@ -29,6 +29,11 @@ public class InvestmentsController : ControllerBase
     public async Task<ActionResult<InvestmentVsIncomeDto>> VsIncome([FromQuery] Guid periodId)
         => Ok(await _investmentService.GetVsIncomeAsync(_currentUser.Id, periodId));
 
+    /// <summary>Investments and lendings added up, plus what moved in that cycle.</summary>
+    [HttpGet("portfolio")]
+    public async Task<ActionResult<InvestmentPortfolioDto>> Portfolio([FromQuery] Guid periodId)
+        => Ok(await _investmentService.GetPortfolioAsync(_currentUser.Id, periodId));
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<InvestmentDetailDto>> Get(Guid id)
         => Ok(await _investmentService.GetAsync(_currentUser.Id, id));

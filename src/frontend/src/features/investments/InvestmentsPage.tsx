@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { investmentsApi, type Investment, type InvestmentKind } from '../../api/investments'
+import {
+  investmentsApi,
+  type Investment,
+  type InvestmentGroupTotals,
+  type InvestmentKind,
+} from '../../api/investments'
 import { categoriesApi } from '../../api/categories'
 import { budgetPeriodsApi } from '../../api/settings'
 import { ApiError } from '../../api/client'
@@ -32,8 +37,14 @@ export default function InvestmentsPage() {
     queryFn: () => budgetPeriodsApi.relative(offset),
   })
 
+  const { data: portfolio } = useQuery({
+    queryKey: ['investments', 'portfolio', period?.id],
+    queryFn: () => investmentsApi.portfolio(period!.id),
+    enabled: !!period,
+  })
+
   const { data: vsIncome } = useQuery({
-    queryKey: ['investment-vs-income', period?.id],
+    queryKey: ['investments', 'vs-income', period?.id],
     queryFn: () => investmentsApi.vsIncome(period!.id),
     enabled: !!period,
   })
@@ -48,6 +59,10 @@ export default function InvestmentsPage() {
       </div>
 
       <PeriodPicker label={period?.label ?? '…'} offset={offset} onOffsetChange={setOffset} />
+
+      {portfolio?.groups
+        .filter((g) => g.count > 0)
+        .map((g) => <GroupTotals key={g.kind} group={g} periodLabel={portfolio.periodLabel} />)}
 
       {vsIncome && <VsIncome data={vsIncome} />}
 
@@ -84,6 +99,77 @@ export default function InvestmentsPage() {
         )
       })}
     </div>
+  )
+}
+
+/**
+ * One kind added up. The period picker changes only the bottom line — what you have out is
+ * what you have out, whichever cycle you are looking at.
+ */
+function GroupTotals({
+  group,
+  periodLabel,
+}: {
+  group: InvestmentGroupTotals
+  periodLabel: string
+}) {
+  const { format } = useMoney()
+  const words = wordingFor(group.kind)
+
+  return (
+    <section className={`${card} p-4`}>
+      <h2 className={`${eyebrow} mb-2`}>
+        {words.group} ({group.count})
+      </h2>
+
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <span>
+          <span className={`${eyebrow} block`}>{words.remaining}</span>
+          <span className="block text-xl font-semibold tabular-nums text-negative-600 dark:text-negative-400">
+            {format(group.outstanding)}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={`${eyebrow} block`}>{words.out}</span>
+          <span className="block text-lg font-semibold tabular-nums text-ink">
+            {format(group.out)}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={`${eyebrow} block`}>{words.back}</span>
+          <span className="block text-lg font-semibold tabular-nums text-positive-700 dark:text-positive-400">
+            {format(group.back)}
+          </span>
+        </span>
+      </div>
+
+      <ProgressBar
+        value={group.back}
+        total={group.out}
+        fill="bg-positive-600"
+        overFill="bg-positive-600"
+      />
+
+      <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line-soft pt-2 text-xs text-ink-muted">
+        <span>
+          {group.percentBack}% back
+          {group.recoupedCount > 0 &&
+            ` · ${group.recoupedCount} of ${group.count} ${words.settled.toLowerCase()}`}
+          {group.surplus > 0 && ` · ${format(group.surplus)} ${words.surplus.toLowerCase()}`}
+        </span>
+        <span>
+          In {periodLabel}{' '}
+          <strong className="font-semibold tabular-nums text-ink">
+            {format(group.outInPeriod)}
+          </strong>{' '}
+          out,{' '}
+          <strong className="font-semibold tabular-nums text-ink">
+            {format(group.backInPeriod)}
+          </strong>{' '}
+          back
+        </span>
+      </p>
+    </section>
   )
 }
 
@@ -231,7 +317,6 @@ export function InvestmentForm({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investments'] })
-      if (investment) queryClient.invalidateQueries({ queryKey: ['investment', investment.id] })
       onDone()
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),

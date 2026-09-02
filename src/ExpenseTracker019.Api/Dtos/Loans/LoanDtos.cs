@@ -81,6 +81,29 @@ public class PeriodTotalDto
     public decimal SecondaryAmount { get; set; }
 }
 
+/// <summary>Every loan added up, plus what was paid in one cycle.</summary>
+public class LoanPortfolioDto
+{
+    public string PeriodLabel { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+
+    public int Count { get; set; }
+    public int SettledCount { get; set; }
+
+    public decimal Borrowed { get; set; }
+    public decimal Repaid { get; set; }
+
+    /// <summary>What is still owed across every loan.</summary>
+    public decimal Outstanding { get; set; }
+
+    /// <summary>Paid in this cycle alone — the figure the period picker changes.</summary>
+    public decimal PaidInPeriod { get; set; }
+
+    /// <summary>0–100 across the whole portfolio.</summary>
+    public decimal PercentSettled { get; set; }
+}
+
 public class SaveLoanRequest
 {
     [Required]

@@ -30,19 +30,19 @@ export default function InvestmentDetailPage() {
   const [range, setRange] = useState({ from: '', to: '' })
 
   const { data: detail, isLoading } = useQuery({
-    queryKey: ['investment', id],
+    queryKey: ['investments', id],
     queryFn: () => investmentsApi.get(id),
   })
 
   const { data: byPeriod } = useQuery({
-    queryKey: ['investment-by-period', id],
+    queryKey: ['investments', id, 'by-period'],
     queryFn: () => investmentsApi.byPeriod(id),
   })
 
   const filtered = range.from !== '' || range.to !== ''
 
   const transactions = useInfiniteQuery({
-    queryKey: ['investment-transactions', id, range.from, range.to],
+    queryKey: ['investments', id, 'transactions', range.from, range.to],
     enabled: filtered,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
