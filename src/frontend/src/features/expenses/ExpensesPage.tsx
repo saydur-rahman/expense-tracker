@@ -78,6 +78,8 @@ export default function ExpensesPage() {
       setError(null)
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       queryClient.invalidateQueries({ queryKey: ['summary'] })
+      queryClient.invalidateQueries({ queryKey: ['loans'] })
+      queryClient.invalidateQueries({ queryKey: ['investments'] })
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save expense.'),
   })
@@ -87,6 +89,8 @@ export default function ExpensesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       queryClient.invalidateQueries({ queryKey: ['summary'] })
+      queryClient.invalidateQueries({ queryKey: ['loans'] })
+      queryClient.invalidateQueries({ queryKey: ['investments'] })
     },
   })
 

@@ -196,6 +196,34 @@ does, because the two screens draw the same overview strip and had to agree to t
 and these two figures were computed over a slightly different set of categories. Budgeting
 past your income is still **not** refused; the strip simply says by how much.
 
+### Loans and investments
+
+Both sit **over** the ledgers rather than beside them. A loan owns no rows: `amountTaken`
+is typed in, and everything else is a SUM over the expenses on its linked heads, computed
+on read. An investment carries no amount at all — both sides are derived.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/loans` | Each loan with `repaid`, `outstanding`, `percentSettled`, `overpaid`, `isSettled` and its linked heads |
+| GET | `/api/loans/{id}` | The loan, its **20 most recent** payments, and the total count |
+| GET | `/api/loans/{id}/transactions?from&to&page&pageSize` | Paged and date-filtered. `pageSize` defaults to 20, capped at 100 |
+| GET | `/api/loans/{id}/by-period?count=12` | Per-cycle payment totals. **Computes** the windows — creates no `BudgetPeriod` rows |
+| POST/PUT | `/api/loans` · `/api/loans/{id}` | `headIds` replaces the linked set wholesale |
+| DELETE | `/api/loans/{id}` | The expenses are untouched |
+| GET | `/api/investments` | Adds `kind` (`Investment`/`Lend`), `counterparty`, `invested`, `returned`, `percentReturned`, `gain`, `isRecouped`, and the two head groups. Ordered investments first, then lends |
+| GET | `/api/investments/vs-income?periodId=` | Invested against all income for that cycle. **Counts `Investment` entries only** — lending a friend money is not investing, and mixing the two would make the percentage meaningless |
+| *(the same four sub-resources as loans)* | | `by-period` carries returns in `secondaryAmount` |
+
+**Rejections to expect.** 400 on a head of the wrong kind (a loan's heads and an
+investment's contribution heads must be `Expense`, its return heads `Income`), or on the
+same head used for both sides of one investment. **409 when a head already belongs to
+another loan or investment** — every row on a head counts, so sharing one would count the
+same payment twice.
+
+Payments are counted from the loan's `takenOn` (an investment's `startedOn`) onward: rows
+dated before the thing existed are not part of it. Every read ignores the archive filters,
+so a head archived after it was linked keeps its history.
+
 ### Expenses
 
 | Method | Path | Notes |

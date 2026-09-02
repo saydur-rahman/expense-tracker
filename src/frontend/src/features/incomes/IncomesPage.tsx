@@ -78,6 +78,7 @@ export default function IncomesPage() {
       setError(null)
       queryClient.invalidateQueries({ queryKey: ['incomes'] })
       queryClient.invalidateQueries({ queryKey: ['summary'] })
+      queryClient.invalidateQueries({ queryKey: ['investments'] })
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save income.'),
   })
@@ -87,6 +88,7 @@ export default function IncomesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incomes'] })
       queryClient.invalidateQueries({ queryKey: ['summary'] })
+      queryClient.invalidateQueries({ queryKey: ['investments'] })
     },
   })
 

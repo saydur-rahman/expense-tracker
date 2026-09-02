@@ -22,6 +22,10 @@ public class AppDbContext : DbContext
     public DbSet<HeadBudget> HeadBudgets => Set<HeadBudget>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Income> Incomes => Set<Income>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanHead> LoanHeads => Set<LoanHead>();
+    public DbSet<Investment> Investments => Set<Investment>();
+    public DbSet<InvestmentHead> InvestmentHeads => Set<InvestmentHead>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<FeedbackMessage> FeedbackMessages => Set<FeedbackMessage>();
 
@@ -146,6 +150,66 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.UserId);
             e.HasOne(x => x.Head)
                 .WithMany(h => h.Incomes)
+                .HasForeignKey(x => x.HeadId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Loan>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Lender).HasMaxLength(120);
+            e.Property(x => x.Remark).HasMaxLength(1000);
+            e.Property(x => x.AmountTaken).HasPrecision(18, 2);
+            e.HasIndex(x => x.UserId);
+        });
+
+        builder.Entity<LoanHead>(e =>
+        {
+            // The rule that makes "every expense on the head repays the loan" safe: one
+            // head, one loan. Two loans sharing a head would both count the same payment.
+            e.HasIndex(x => x.HeadId).IsUnique();
+
+            e.HasOne(x => x.Loan)
+                .WithMany(l => l.Heads)
+                .HasForeignKey(x => x.LoanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Restrict, like every other reference to a head: heads are archived, never
+            // deleted, and a loan's history must survive that.
+            e.HasOne(x => x.Head)
+                .WithMany(h => h.LoanHeads)
+                .HasForeignKey(x => x.HeadId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Investment>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Counterparty).HasMaxLength(120);
+            e.Property(x => x.Remark).HasMaxLength(1000);
+
+            // No HasDefaultValue: InvestmentKind.Investment is 0, so the column's own SQL
+            // default backfills existing rows onto it. Giving it a store default would make
+            // EF treat it as store-generated and send DEFAULT for Investment, which is the
+            // trap that rewrote DayOfWeek.Sunday as Monday.
+            e.HasIndex(x => new { x.UserId, x.Kind });
+        });
+
+        builder.Entity<InvestmentHead>(e =>
+        {
+            e.HasIndex(x => x.HeadId).IsUnique();
+
+            // No HasDefaultValue on Direction, and so no need for ValueGeneratedNever:
+            // there is no older data to backfill, and a store default on an enum is the
+            // trap that silently rewrote DayOfWeek.Sunday as Monday (see the comment on
+            // UserMonthCycleSetting above).
+            e.HasOne(x => x.Investment)
+                .WithMany(i => i.Heads)
+                .HasForeignKey(x => x.InvestmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Head)
+                .WithMany(h => h.InvestmentHeads)
                 .HasForeignKey(x => x.HeadId)
                 .OnDelete(DeleteBehavior.Restrict);
         });

@@ -15,6 +15,10 @@ import CategoriesPage from './features/categories/CategoriesPage'
 import BudgetSetupPage from './features/budgets/BudgetSetupPage'
 import ExpensesPage from './features/expenses/ExpensesPage'
 import IncomesPage from './features/incomes/IncomesPage'
+import LoansPage from './features/loans/LoansPage'
+import LoanDetailPage from './features/loans/LoanDetailPage'
+import InvestmentsPage from './features/investments/InvestmentsPage'
+import InvestmentDetailPage from './features/investments/InvestmentDetailPage'
 import AdminUsersPage from './features/admin/AdminUsersPage'
 import AdminFeedbackPage from './features/admin/AdminFeedbackPage'
 import FeedbackPage from './features/settings/FeedbackPage'
@@ -39,6 +43,10 @@ export const router = createBrowserRouter([
               { path: '/budgets', element: <BudgetSetupPage /> },
               { path: '/expenses', element: <ExpensesPage /> },
               { path: '/incomes', element: <IncomesPage /> },
+              { path: '/loans', element: <LoansPage /> },
+              { path: '/loans/:id', element: <LoanDetailPage /> },
+              { path: '/investments', element: <InvestmentsPage /> },
+              { path: '/investments/:id', element: <InvestmentDetailPage /> },
               {
                 path: '/settings',
                 element: <SettingsLayout />,
