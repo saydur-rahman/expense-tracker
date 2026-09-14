@@ -152,6 +152,19 @@ public class AppDbContext : DbContext
                 .WithMany(h => h.Incomes)
                 .HasForeignKey(x => x.HeadId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // One loan, at most one proceeds row. Filtered explicitly rather than left to
+            // the provider: on SQL Server a plain unique index treats NULLs as equal, so
+            // without the filter the *second* ordinary income row would be rejected.
+            e.HasIndex(x => x.LoanId).IsUnique().HasFilter("[LoanId] IS NOT NULL");
+
+            // Cascade, unlike every other reference here: this row is the loan's own record
+            // of the money arriving, so losing the loan means the arrival never happened.
+            // Ordinary income is never touched — its LoanId is null.
+            e.HasOne(x => x.Loan)
+                .WithOne(l => l.Proceeds)
+                .HasForeignKey<Income>(x => x.LoanId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Loan>(e =>

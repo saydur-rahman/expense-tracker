@@ -1,6 +1,6 @@
 # Project Status
 
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-14
 
 Read this first when picking the project back up. It records what is actually built and verified, what is not, and what to do next.
 
@@ -179,6 +179,21 @@ All of the following were exercised against **live running services**, not just 
 - `PeriodBudgetsDto` gained `totalIncome` and `totalBudgeted` rather than the screen making a second call to the reports endpoint. `totalBudgeted` sums each category's `amount`, so it follows the heads-first rule instead of re-deriving it
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
+
+**A loan can count as that month's income (added 2026-09-14)**
+- Asked for by the owner: *"if i add that i took a loan this month that needs to be added in that months income total as well."* Borrowing 12,000 in September is 12,000 you had to spend that September, and the dashboard was not saying so
+- **This reverses a documented rule.** `Loan` was explicitly "no ledger entry — borrowing is not earnings", and `AGENTS.md` rule 9 said loans are views over the ledgers and never a third one. Rule 9 now carries the single exception and the reasoning; `ARCHITECTURE.md` and `API.md` follow
+- **Done as a real income row, not as arithmetic in the totals.** The loan form asks *where did the money land?*; pick an income head and `LoanService` writes one `Income` for `AmountTaken` dated `TakenOn`, joined by the new `Income.LoanId`. `ReportService`, `/api/incomes`, the Budgets screen's income line and the budget-vs-income ladder then all count it **with no code of their own** — one way to compute income, so no two screens can disagree
+- Rejected: adding loans into `TotalIncome` inside `ReportService`. It needed no migration, but the dashboard total would then no longer equal its own income categories, and the Income screen would print a different figure — the exact failure `PeriodBudgetsDto` was stripped of period totals to prevent (rule 2)
+- **The row is derived, never authored.** `ApplyProceedsAsync` re-copies amount, date and note from the loan on every save; clearing the head deletes it; the FK cascades it away with the loan. So `IncomeService` **refuses PUT and DELETE on any row carrying a `LoanId`** and names the loan instead — two editable copies of one figure is two answers to "how much did you borrow". Both halves are the rule
+- Optional on purpose: leave it blank and the loan behaves exactly as before, which is what you want when the money went straight to a dealer and never passed through your hands. Nothing is auto-created — you pick an existing income head, as everywhere else
+- Re-sending the head a loan already uses is accepted **even if that head has since been archived**, so editing an old loan's name doesn't fail on a head nobody can re-pick
+- On the Income screen these rows carry a *Loan* tag and swap **Delete** for **Open loan** — the way through rather than a button that would 400
+- Migration `AddLoanProceedsIncome` is nullable-column-only (no backfill trap) with a **filtered** unique index, `WHERE [LoanId] IS NOT NULL`: SQL Server treats NULLs as equal in a plain unique index, so without the filter the second ordinary income row would have been rejected. Existing income is untouched
+- Loan writes now invalidate `['incomes']` and `['summary']` as well as `['loans']`
+- **Verified against live services (16 checks, two throwaway accounts through the real PKCE flow).** A loan with no income head moved nothing; a 12,000 loan took the dashboard to `totalIncome=12000` with `/api/incomes` reporting the same 12,000 over one row, noted *"Car loan — from ANZ"*; PUT and DELETE on that row both 400'd naming the loan; editing the loan to 9,000 moved the income to 9,000; a spending head as `proceedsHeadId` 400'd; clearing the head took it back to 0 and re-setting it restored 9,000; an ordinary 3,000 income alongside it survived deleting the loan (12,000 → 3,000) and was still deletable itself
+- Also checked: **five ordinary income rows coexist** (the filtered-index trap — a plain unique index would have rejected the second), two loans can share one income head and get a row each, `totalIncome` equals the sum of its own `incomeCategories` so the dashboard's drill-down adds up, and a 250 repayment on a linked head still moved only `totalSpent` and the loan's `repaid`
+- **Not opened in a browser.** The whole backend path is exercised above and the frontend typechecks and transforms cleanly under Vite, but the loan form's new field, the *Loan* tag on the income list and the updated help text have not been looked at on screen
 
 **Totals across every loan and every investment (added 2026-09-02)**
 - Asked for: the total loan left, what was paid each month with the same cycle picker the other screens use, and one place to see total investments and lendings

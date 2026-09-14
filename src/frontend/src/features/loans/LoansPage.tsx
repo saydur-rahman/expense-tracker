@@ -9,6 +9,7 @@ import { useMoney } from '../../lib/money'
 import Button from '../../components/Button'
 import AmountField from '../../components/AmountField'
 import HeadMultiSelect from '../../components/HeadMultiSelect'
+import SearchableSelect, { type SelectOption } from '../../components/SearchableSelect'
 import LinkedHeadWarning from '../../components/LinkedHeadWarning'
 import ProgressBar from '../../components/charts/ProgressBar'
 import PeriodPicker from '../../components/PeriodPicker'
@@ -184,6 +185,7 @@ export function LoanForm({
   const [takenOn, setTakenOn] = useState(loan?.takenOn ?? todayLocal())
   const [remark, setRemark] = useState(loan?.remark ?? '')
   const [headIds, setHeadIds] = useState<string[]>(loan?.heads.map((h) => h.headId) ?? [])
+  const [proceedsHeadId, setProceedsHeadId] = useState(loan?.proceedsHead?.headId ?? '')
   const [error, setError] = useState<string | null>(null)
 
   // Spending heads only: a loan is repaid out of what goes out.
@@ -191,6 +193,21 @@ export function LoanForm({
     queryKey: ['categories', 'Expense'],
     queryFn: () => categoriesApi.list('Expense'),
   })
+
+  // The other side: borrowed money arrives, so it can only land on an income head.
+  const { data: incomeCategories } = useQuery({
+    queryKey: ['categories', 'Income'],
+    queryFn: () => categoriesApi.list('Income'),
+  })
+
+  const proceedsOptions: SelectOption[] =
+    incomeCategories?.flatMap((category) =>
+      category.heads.map((head) => ({
+        value: head.id,
+        label: head.name,
+        group: category.name,
+      })),
+    ) ?? []
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -201,11 +218,15 @@ export function LoanForm({
         takenOn,
         remark: remark.trim() || null,
         headIds,
+        proceedsHeadId: proceedsHeadId || null,
       }
       return loan ? loansApi.update(loan.id, request) : loansApi.create(request)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loans'] })
+      // A loan now writes an income row, so the ledger and every total over it move too.
+      queryClient.invalidateQueries({ queryKey: ['incomes'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
       onDone()
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not save.'),
@@ -266,6 +287,35 @@ export function LoanForm({
           className={field}
         />
       </label>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-ink-soft">
+          Where did the money land? (optional)
+        </span>
+        <p className="text-xs text-ink-muted">
+          Pick an income head and the amount above is counted as income on the day you took
+          it, so the month it arrived adds up. Leave it blank to record no income.
+        </p>
+        {proceedsOptions.length === 0 ? (
+          <p className="text-xs text-ink-muted">
+            No income heads yet — add an income category first if you want this counted.
+          </p>
+        ) : (
+          <SearchableSelect
+            value={proceedsHeadId}
+            onChange={setProceedsHeadId}
+            options={proceedsOptions}
+            emptyLabel="Don't record it as income"
+            placeholder="Don't record it as income"
+          />
+        )}
+        {loan?.proceedsHead && proceedsHeadId === '' && (
+          <p className="text-xs text-negative-600 dark:text-negative-400">
+            Saving now removes the {loan.proceedsHead.categoryName} ›{' '}
+            {loan.proceedsHead.headName} entry this loan added to your income.
+          </p>
+        )}
+      </div>
 
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-ink-soft">Which heads repay it?</span>

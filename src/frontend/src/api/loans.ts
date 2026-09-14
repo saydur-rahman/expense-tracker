@@ -24,6 +24,8 @@ export interface Loan {
   /** Paid beyond what was taken — usually a payment against the wrong head. */
   overpaid: number
   isSettled: boolean
+  /** Where the borrowed money was recorded as income, or null if nowhere. */
+  proceedsHead: LinkedHead | null
   heads: LinkedHead[]
 }
 
@@ -83,6 +85,8 @@ export interface SaveLoanRequest {
   remark: string | null
   /** Replaces the linked set wholesale. */
   headIds: string[]
+  /** Income head the money landed in; null records no income for this loan. */
+  proceedsHeadId: string | null
 }
 
 export interface TransactionFilters {

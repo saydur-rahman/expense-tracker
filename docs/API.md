@@ -200,9 +200,10 @@ past your income is still **not** refused; the strip simply says by how much.
 
 ### Loans and investments
 
-Both sit **over** the ledgers rather than beside them. A loan owns no rows: `amountTaken`
-is typed in, and everything else is a SUM over the expenses on its linked heads, computed
-on read. An investment carries no amount at all — both sides are derived.
+Both sit **over** the ledgers rather than beside them. A loan owns exactly one row — the
+proceeds income below — and nothing else: `amountTaken` is typed in, and every other figure
+is a SUM over the expenses on its linked heads, computed on read. An investment owns no rows
+and carries no amount at all; both its sides are derived.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -211,8 +212,8 @@ on read. An investment carries no amount at all — both sides are derived.
 | GET | `/api/loans/{id}` | The loan, its **20 most recent** payments, and the total count |
 | GET | `/api/loans/{id}/transactions?from&to&page&pageSize` | Paged and date-filtered. `pageSize` defaults to 20, capped at 100 |
 | GET | `/api/loans/{id}/by-period?count=12` | Per-cycle payment totals. **Computes** the windows — creates no `BudgetPeriod` rows |
-| POST/PUT | `/api/loans` · `/api/loans/{id}` | `headIds` replaces the linked set wholesale |
-| DELETE | `/api/loans/{id}` | The expenses are untouched |
+| POST/PUT | `/api/loans` · `/api/loans/{id}` | `headIds` replaces the linked set wholesale. `proceedsHeadId` (optional, an **income** head) records `amountTaken` as income dated `takenOn`; omitting or nulling it deletes that row again |
+| DELETE | `/api/loans/{id}` | The expenses are untouched. The proceeds income is not — it cascades away with the loan |
 | GET | `/api/investments` | Adds `kind` (`Investment`/`Lend`), `counterparty`, `invested`, `returned`, `percentReturned`, `gain`, `isRecouped`, and the two head groups. Ordered investments first, then lends |
 | GET | `/api/investments/portfolio?periodId=` | Both kinds added up, **always both groups in order** so the screen renders one shape either way: `out`, `back`, `outstanding`, `surplus`, `percentBack`, `count`, `recoupedCount`, plus `outInPeriod`/`backInPeriod` for the cycle |
 | GET | `/api/investments/vs-income?periodId=` | Invested against all income for that cycle. **Counts `Investment` entries only** — lending a friend money is not investing, and mixing the two would make the percentage meaningless |
@@ -227,6 +228,15 @@ same payment twice.
 Payments are counted from the loan's `takenOn` (an investment's `startedOn`) onward: rows
 dated before the thing existed are not part of it. Every read ignores the archive filters,
 so a head archived after it was linked keeps its history.
+
+**A loan's proceeds.** `proceedsHeadId` is what puts borrowed money into a month's income:
+`LoanService` writes a single `Income` for `amountTaken` on `takenOn`, carrying `loanId`, so
+`/api/reports/summary` and `/api/incomes` count it without knowing loans exist. The row is
+re-derived from the loan on every save — amount, date and note — which is why
+`/api/incomes/{id}` **400s on any row with a `loanId`** for both PUT and DELETE; it changes
+on the loan or not at all. `GET /api/loans*` returns it as `proceedsHead`, null when unset.
+Re-sending the head a loan already uses is accepted even if that head has since been
+archived, so renaming an old loan doesn't fail on a head nobody can re-pick.
 
 ### Expenses
 
@@ -245,10 +255,10 @@ A mirror of expenses, against heads of `Income` categories. No budgets apply.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/incomes` | `from`, `to`, `categoryId`, `headId`, `page`, `pageSize` (max 100) |
+| GET | `/api/incomes` | `from`, `to`, `categoryId`, `headId`, `page`, `pageSize` (max 100). Rows carry `loanId`/`loanName` when a loan wrote them |
 | POST | `/api/incomes` | `{headId, amount, incomeDate, note?}`; amount > 0 |
-| PUT | `/api/incomes/{id}` | Same body |
-| DELETE | `/api/incomes/{id}` | Hard delete |
+| PUT | `/api/incomes/{id}` | Same body. **400 on a row with a `loanId`** — a loan's proceeds change on the loan |
+| DELETE | `/api/incomes/{id}` | Hard delete. **400 on a row with a `loanId`**, same reason |
 
 Same list shape as expenses. Posting against a head on an **expense** category returns 400.
 

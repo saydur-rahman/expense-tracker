@@ -166,6 +166,10 @@ export default function HelpPage() {
           single head. A long month loads in batches — <em>Load more</em> at the bottom brings
           in the rest.
         </p>
+        <p className="text-ink-muted">
+          An income entry tagged <em>Loan</em> was added by a loan you recorded, so it is
+          edited there rather than here — see step 6.
+        </p>
       </Step>
 
       <Step
@@ -255,6 +259,23 @@ export default function HelpPage() {
         </p>
         <p>
           <strong className="font-medium text-ink">
+            Borrowed money can count as income for the month it arrived.
+          </strong>{' '}
+          The loan form asks <em>where did the money land?</em> — pick an income head and the
+          amount you borrowed is added to your income on the day you took it, so that month
+          adds up to what you actually had to spend. Leave it blank and the loan records no
+          income at all, which is what you want if the money went straight to a car dealer
+          and never passed through your hands.
+        </p>
+        <p>
+          That entry shows on your <Link className="underline hover:text-ink" to="/incomes">Income</Link>{' '}
+          screen marked <em>Loan</em>, and it is the one entry there you can't edit or delete
+          in place — <em>Open loan</em> takes you to where it does change. Change the amount
+          or the date on the loan and the entry follows; remove the loan and it goes with it.
+          Two places to change one figure is two answers, so there is only one.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">
             Every expense on a linked head counts against that loan.
           </strong>{' '}
           That is the whole trick, and the one thing to get right: don't use a linked head
@@ -300,9 +321,10 @@ export default function HelpPage() {
           mixing the two would make that percentage mean nothing.
         </p>
         <p className="text-ink-muted">
-          Nothing here changes your budget or your totals. A repayment is still an ordinary
-          expense, counted once, exactly as before — removing a loan leaves every expense
-          where it is.
+          Apart from that one entry, nothing here changes your budget or your totals. A
+          repayment is still an ordinary expense, counted once, exactly as before — removing
+          a loan leaves every expense where it is. Money you lend out never touches your
+          income either: it went out, it didn't come in.
         </p>
       </Step>
 

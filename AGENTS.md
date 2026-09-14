@@ -77,6 +77,12 @@ These encode explicit product and security requirements. **Read [docs/ARCHITECTU
 
 9. **Loans and investments are views over the ledgers, never a third ledger.** A loan's balance is a SUM over the expenses on its linked heads, computed on read. **Never store a running balance** — keeping one would mean `ExpenseService`'s create, update *and* delete paths had to maintain it, and it would drift the first time someone edited an old row. The same holds for an investment's two sides.
 
+   **The single exception is a loan's proceeds** (added 2026-09-14, on the owner's request): borrowing 12,000 in September is 12,000 you had to spend that September, so the month's income must say so. `SaveLoanRequest.ProceedsHeadId` names an **income** head and `LoanService` writes one `Income` row for `AmountTaken` dated `TakenOn`, joined by `Income.LoanId` — a real ledger row, so `ReportService`, the income screen and the budget-vs-income ladder all pick it up with no code of their own. *(This reverses the earlier "borrowing is not earnings, so it never becomes an Income" rule.)*
+
+   **That row is derived, not authored.** `ApplyProceedsAsync` re-copies the amount, date and note from the loan on every save, clearing the head deletes it, and the FK cascades it away with the loan. `IncomeService` therefore **refuses to update or delete any row with a `LoanId`** and sends the user to the loan instead: two editable copies of one figure is two answers to "how much did you borrow". Keep both halves — a write path that can change it without the loan knowing reintroduces exactly that.
+
+   **Still exactly one row, and only for loans.** Don't give investments one (money lent out goes *out*), don't let a loan write expenses, and don't add a second. Any loan mutation must invalidate `['incomes']` and `['summary']` as well as `['loans']`.
+
    **A head may be claimed by at most one loan, and at most one investment** — a unique index on `LoanHead.HeadId` and `InvestmentHead.HeadId`. Every expense on a linked head counts automatically, so two loans sharing a head would each count the same payment. Payments are also floored at the loan's `TakenOn` (an investment's `StartedOn`): spending on that head from before the thing existed is not a repayment of it.
 
    An investment links to heads of **both** kinds — Contribution to `Expense`, Return to `Income` — which stays inside rule 8 rather than bending it. Don't add a third `CategoryKind`.

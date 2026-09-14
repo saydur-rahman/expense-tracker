@@ -57,6 +57,7 @@ Category                (soft-deletable, renameable)
     └── Expense         ← every expense hangs off a Head, never a bare Category
 
 Income                  (money in, against an income Head — mirrors Expense, no budget)
+                        └── LoanId (optional) — this row is a loan's proceeds, owned by it
 BudgetPeriod            (one user's concrete "month": start + end dates)
 ├── CategoryBudget      (period × category → amount)
 └── HeadBudget          (period × head → amount)
@@ -69,6 +70,10 @@ A **Category** is a grouping ("Food"). A **Head** is what you actually spend on 
 **Two ledgers, one structure.** A category carries a `Kind` — `Expense` or `Income` — and heads inherit it from their category. Income reuses the whole category/head shape but **never carries a budget**: budgets exist to cap spending, and there is nothing to cap on money coming in. The trees are kept apart so "Salary" and "Groceries" never share a list, and a name may be reused across kinds.
 
 The boundary is enforced in the services, not left to the client: `BudgetService` rejects a budget on an income category or head, `ExpenseService` rejects spending booked against an income head, and `IncomeService` rejects income booked against a spending head. Crossing the two would silently corrupt every total on the dashboard, so none of it is trusted from the request.
+
+**The one row a loan owns.** Borrowing 12,000 in September is 12,000 you had to spend that September, so a loan may name an income head and record its `AmountTaken` there, dated `TakenOn` (`Income.LoanId`). That makes it an ordinary ledger row: `ReportService`, the income screen and the budget-vs-income ladder all count it without knowing loans exist, which is the whole reason for doing it this way rather than adding loans into the totals by hand — two ways to compute income is how two screens end up printing two different numbers.
+
+It stays a *derived* row, not an authored one. `LoanService.ApplyProceedsAsync` re-copies the amount, date and note from the loan on every save, clearing the head deletes the row, and the FK cascades it away with the loan. `IncomeService` correspondingly refuses to update or delete anything carrying a `LoanId` and points the user at the loan. Both halves are the rule: one editable copy of the figure, and it lives on the loan.
 
 ---
 
