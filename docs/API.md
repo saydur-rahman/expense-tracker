@@ -297,4 +297,16 @@ Per category and head: `budget`, `spent`, `remaining`, `isOverBudget`, `isArchiv
 
 The summary carries **both ledgers**: `categories` is the spending breakdown, `incomeCategories` the income one — the dashboard's two tabs. Totals are `totalBudget`, `totalSpent`, `totalRemaining`, `totalIncome`, and `totalSaved` (income minus spending; negative means you spent more than you earned). On an income category the `spent` field carries the amount received and the budget fields stay null, so one component renders either tab.
 
+**`extraExpenses` and `estimatedLeftOver`** (added 2026-09-14) are the fifth bar on the
+overview strip. `extraExpenses` is spending the budget never accounted for, summed **per
+category** — whatever went past each category's budget, with an unbudgeted category counting
+in full. Per category, not `totalSpent − totalBudget`, so one category running under cannot
+quietly cover another running over; and not per *head*, because rule 2 makes a category's
+budget the sum of its heads, so the category is the level the plan is made at.
+`estimatedLeftOver` is `totalIncome − totalBudget − extraExpenses`: a **forecast** of what
+the period ends with if the rest of the budget goes out and nothing else does, as against
+`totalSaved`, which is where things actually stand. Neither is clamped — a plan bigger than
+the income reads negative. With no budget set at all, every category's spending is extra and
+`estimatedLeftOver` equals `totalSaved`.
+
 **Budget rejections (400):** an income category or head can never take a budget.

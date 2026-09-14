@@ -32,6 +32,16 @@ export interface PeriodSummary {
   totalIncome: number
   /** Income minus spending. Negative means you spent more than you earned. */
   totalSaved: number
+  /**
+   * Spending the budget never accounted for — per category, whatever went past its
+   * budget, with an unbudgeted category counting in full.
+   */
+  extraExpenses: number
+  /**
+   * A forecast: income − budget − extraExpenses. What the period ends with if the rest
+   * of the budget is spent and nothing else is. `totalSaved` is where things stand now.
+   */
+  estimatedLeftOver: number
   categories: CategorySummary[]
   incomeCategories: CategorySummary[]
 }
