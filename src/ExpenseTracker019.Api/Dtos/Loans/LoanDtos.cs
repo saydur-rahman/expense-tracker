@@ -37,6 +37,12 @@ public class LoanDto
 
     public bool IsSettled { get; set; }
 
+    /// <summary>
+    /// The income head the borrowed money was recorded against, or null if none was
+    /// chosen. Null means the loan wrote no income row and never touched a month's total.
+    /// </summary>
+    public LinkedHeadDto? ProceedsHead { get; set; }
+
     public List<LinkedHeadDto> Heads { get; set; } = new();
 }
 
@@ -127,4 +133,11 @@ public class SaveLoanRequest
     /// so a PUT carrying fewer ids unlinks the rest.
     /// </summary>
     public List<Guid> HeadIds { get; set; } = new();
+
+    /// <summary>
+    /// The <em>income</em> head the borrowed money landed in. Set it and the loan records
+    /// <see cref="AmountTaken"/> as income on <see cref="TakenOn"/>, so the month it was
+    /// taken counts it. Null clears that row again — a PUT that omits it removes the income.
+    /// </summary>
+    public Guid? ProceedsHeadId { get; set; }
 }

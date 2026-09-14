@@ -57,6 +57,9 @@ export default function LoanDetailPage() {
     mutationFn: () => loansApi.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loans'] })
+      // The proceeds income goes with the loan, so the ledger and its totals move too.
+      queryClient.invalidateQueries({ queryKey: ['incomes'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
       navigate('/loans')
     },
   })
@@ -196,6 +199,8 @@ export default function LoanDetailPage() {
             <p className="text-xs text-ink-muted">
               Removing the loan leaves every expense exactly where it is — you only lose
               this view of them.
+              {loan.proceedsHead &&
+                ` The ${format(loan.amountTaken)} it added to your income on ${loan.takenOn} does go, though — it was this loan's entry.`}
             </p>
           )}
         </>
@@ -260,6 +265,21 @@ function LoanSummary({ loan }: { loan: Loan }) {
           payment went onto a linked head that wasn't really for this loan.
         </p>
       )}
+
+      <p className="mt-2 text-xs text-ink-muted">
+        {loan.proceedsHead ? (
+          <>
+            Counted as income under{' '}
+            <strong className="font-medium text-ink-soft">
+              {loan.proceedsHead.categoryName} › {loan.proceedsHead.headName}
+            </strong>{' '}
+            on {loan.takenOn}
+            {loan.proceedsHead.isArchived && ' (that head has since been removed)'}
+          </>
+        ) : (
+          'Not counted as income — edit the loan and pick an income head if it should be.'
+        )}
+      </p>
 
       {loan.heads.length > 0 && (
         <p className="mt-2 text-xs text-ink-muted">

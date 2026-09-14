@@ -1,6 +1,6 @@
 # Project Status
 
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-14
 
 Read this first when picking the project back up. It records what is actually built and verified, what is not, and what to do next.
 
@@ -179,6 +179,33 @@ All of the following were exercised against **live running services**, not just 
 - `PeriodBudgetsDto` gained `totalIncome` and `totalBudgeted` rather than the screen making a second call to the reports endpoint. `totalBudgeted` sums each category's `amount`, so it follows the heads-first rule instead of re-deriving it
 - Income under an **archived** head still counts — the query calls `IgnoreQueryFilters()` for the same reason the report queries do (rule 3)
 - Verified against live services (14 checks): income appearing and totalling; left-to-budget falling as budgets are set; budgeting past income accepted and going negative; income dated outside the period excluded; and on a weekly cycle, income from earlier the same month but before the week began correctly left out, then counted again on switching back to monthly
+
+**An "Est. left over" bar on the overview strip (added 2026-09-14)**
+- Asked for by the owner: *"there will be another bar in dashboard thats estimated left overs: total income - total budget - extra expenses"*
+- The strip goes from four bars to five: Budget, Income, Spent, Left, **Est. left over**. `Left` is income minus what has actually gone out; the new one is a **forecast** — what remains once the rest of the budget follows it. They sit next to each other on purpose and the captions say which is which
+- **"Extra expenses" is summed per category**, not on the totals: whatever went past each category's budget, with a category carrying no budget at all counting in full. `totalSpent − totalBudget` would let one category running under quietly cover another running over — the figure would look right and be wrong, the same trap as a loan portfolio's `outstanding`
+- **Deliberately not per head.** Rule 2 makes a category's budget the sum of its heads, so overspending Groceries while underspending Dining leaves Food on budget and contributes nothing. The category is the level the plan is actually made at
+- `ExtraExpenses` and `EstimatedLeftOver` are computed in `ReportService` and nowhere else, so the dashboard and the Budgets screen — which draw the **same** strip from the same summary — cannot disagree. Both screens got the bar with no change of their own; they already pass the whole summary
+- Neither figure is clamped: a plan bigger than the income reads negative and the bar turns red, which is the point of showing it. With no budget at all every category's spending is extra, so the estimate equals `Left` — the bar says so rather than looking duplicated
+- Colour follows the existing rule — Spent, Left and the estimate carry no state of their own so the Budget and Income bars keep the eye; the estimate's only exception is red below zero, exactly as `Left` has. No new colour was added
+- **Verified against live services (10 checks)** on the worked example — income 5,000; Food 1,000 (Groceries 700 + Dining 300), Transport 400, Gifts unbudgeted; spent Groceries 800, Dining 100, Transport 500, Gifts 150. Result: `budget=1400 spent=1550 extra=250 estLeft=3350 left=3450`, and `estimatedLeftOver` equalled `income − budget − extra` at every step
+- The three cases that pin the definition all held: Groceries 100 over its head budget contributed **0** while Food was under; raising Food's budget to 1,600 (700 under) left `extra` at **250** rather than cancelling Transport and Gifts; and a 1,800 budget on 1,000 income gave `estLeft=-800`
+- **Not opened in a browser** — the figures are verified through the API and the strip typechecks and transforms cleanly, but the fifth bar has not been looked at on screen
+
+**A loan can count as that month's income (added 2026-09-14)**
+- Asked for by the owner: *"if i add that i took a loan this month that needs to be added in that months income total as well."* Borrowing 12,000 in September is 12,000 you had to spend that September, and the dashboard was not saying so
+- **This reverses a documented rule.** `Loan` was explicitly "no ledger entry — borrowing is not earnings", and `AGENTS.md` rule 9 said loans are views over the ledgers and never a third one. Rule 9 now carries the single exception and the reasoning; `ARCHITECTURE.md` and `API.md` follow
+- **Done as a real income row, not as arithmetic in the totals.** The loan form asks *where did the money land?*; pick an income head and `LoanService` writes one `Income` for `AmountTaken` dated `TakenOn`, joined by the new `Income.LoanId`. `ReportService`, `/api/incomes`, the Budgets screen's income line and the budget-vs-income ladder then all count it **with no code of their own** — one way to compute income, so no two screens can disagree
+- Rejected: adding loans into `TotalIncome` inside `ReportService`. It needed no migration, but the dashboard total would then no longer equal its own income categories, and the Income screen would print a different figure — the exact failure `PeriodBudgetsDto` was stripped of period totals to prevent (rule 2)
+- **The row is derived, never authored.** `ApplyProceedsAsync` re-copies amount, date and note from the loan on every save; clearing the head deletes it; the FK cascades it away with the loan. So `IncomeService` **refuses PUT and DELETE on any row carrying a `LoanId`** and names the loan instead — two editable copies of one figure is two answers to "how much did you borrow". Both halves are the rule
+- Optional on purpose: leave it blank and the loan behaves exactly as before, which is what you want when the money went straight to a dealer and never passed through your hands. Nothing is auto-created — you pick an existing income head, as everywhere else
+- Re-sending the head a loan already uses is accepted **even if that head has since been archived**, so editing an old loan's name doesn't fail on a head nobody can re-pick
+- On the Income screen these rows carry a *Loan* tag and swap **Delete** for **Open loan** — the way through rather than a button that would 400
+- Migration `AddLoanProceedsIncome` is nullable-column-only (no backfill trap) with a **filtered** unique index, `WHERE [LoanId] IS NOT NULL`: SQL Server treats NULLs as equal in a plain unique index, so without the filter the second ordinary income row would have been rejected. Existing income is untouched
+- Loan writes now invalidate `['incomes']` and `['summary']` as well as `['loans']`
+- **Verified against live services (16 checks, two throwaway accounts through the real PKCE flow).** A loan with no income head moved nothing; a 12,000 loan took the dashboard to `totalIncome=12000` with `/api/incomes` reporting the same 12,000 over one row, noted *"Car loan — from ANZ"*; PUT and DELETE on that row both 400'd naming the loan; editing the loan to 9,000 moved the income to 9,000; a spending head as `proceedsHeadId` 400'd; clearing the head took it back to 0 and re-setting it restored 9,000; an ordinary 3,000 income alongside it survived deleting the loan (12,000 → 3,000) and was still deletable itself
+- Also checked: **five ordinary income rows coexist** (the filtered-index trap — a plain unique index would have rejected the second), two loans can share one income head and get a row each, `totalIncome` equals the sum of its own `incomeCategories` so the dashboard's drill-down adds up, and a 250 repayment on a linked head still moved only `totalSpent` and the loan's `repaid`
+- **Not opened in a browser.** The whole backend path is exercised above and the frontend typechecks and transforms cleanly under Vite, but the loan form's new field, the *Loan* tag on the income list and the updated help text have not been looked at on screen
 
 **Totals across every loan and every investment (added 2026-09-02)**
 - Asked for: the total loan left, what was paid each month with the same cycle picker the other screens use, and one place to see total investments and lendings

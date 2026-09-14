@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { categoriesApi } from '../../api/categories'
 import { incomesApi } from '../../api/incomes'
@@ -195,6 +196,11 @@ export default function IncomesPage() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-ink">
                 {income.categoryName} · {income.headName}
+                {income.loanId && (
+                  <span className="ml-1.5 rounded bg-raised px-1.5 py-0.5 align-middle text-[0.625rem] font-medium uppercase tracking-wide text-ink-muted">
+                    Loan
+                  </span>
+                )}
               </p>
               <p className="truncate text-xs text-ink-muted">
                 {income.incomeDate}
@@ -205,12 +211,23 @@ export default function IncomesPage() {
               <span className="font-medium text-ink">
                 {money.format(income.amount)}
               </span>
-              <button
-                onClick={() => removeIncome.mutate(income.id)}
-                className="text-xs font-medium text-ink-muted transition-colors hover:text-negative-600"
-              >
-                Delete
-              </button>
+              {/* A loan's proceeds are the loan's row: it changes there or not at all,
+                  so this offers the way through rather than a button that would 400. */}
+              {income.loanId ? (
+                <Link
+                  to={`/loans/${income.loanId}`}
+                  className="text-xs font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400"
+                >
+                  Open loan
+                </Link>
+              ) : (
+                <button
+                  onClick={() => removeIncome.mutate(income.id)}
+                  className="text-xs font-medium text-ink-muted transition-colors hover:text-negative-600"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </li>
         ))}

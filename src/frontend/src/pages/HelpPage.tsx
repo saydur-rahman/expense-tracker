@@ -166,6 +166,10 @@ export default function HelpPage() {
           single head. A long month loads in batches — <em>Load more</em> at the bottom brings
           in the rest.
         </p>
+        <p className="text-ink-muted">
+          An income entry tagged <em>Loan</em> was added by a loan you recorded, so it is
+          edited there rather than here — see step 6.
+        </p>
       </Step>
 
       <Step
@@ -174,16 +178,19 @@ export default function HelpPage() {
         where={<Link className="underline hover:text-ink" to="/">Dashboard</Link>}
       >
         <p>
-          Four bars sit at the top, in the order they answer the question:{' '}
+          Five bars sit at the top, in the order they answer the question:{' '}
           <strong className="font-medium text-ink">Budget</strong> — what you planned to
           spend, <strong className="font-medium text-ink">Income</strong> — what has come in
           so far, <strong className="font-medium text-ink">Spent</strong> — what has gone
-          out, and <strong className="font-medium text-ink">Left</strong> — what that leaves
-          you. They never change when you switch tabs: they describe the whole period.
+          out, <strong className="font-medium text-ink">Left</strong> — what that leaves
+          you, and <strong className="font-medium text-ink">Est. left over</strong> — where
+          that is heading. They never change when you switch tabs: they describe the whole
+          period. The same five appear on the Budgets screen, because it is the same
+          question being asked while you decide.
         </p>
         <p>
           <strong className="font-medium text-ink">Your budget is the measuring stick.</strong>{' '}
-          All four bars are drawn to the same scale, and a faint upright line runs down every
+          All five bars are drawn to the same scale, and a faint upright line runs down every
           one of them at the point your budget sits. So you can see at a glance whether your
           income has reached that line yet, and whether your spending has gone past it — no
           arithmetic needed.
@@ -203,13 +210,38 @@ export default function HelpPage() {
           not that you have done something wrong.
         </p>
         <p>
-          <strong className="font-medium text-ink">Spent</strong> and{' '}
-          <strong className="font-medium text-ink">Left</strong> keep one plain colour each,
-          so the two bars above are the ones your eye goes to. The one exception:{' '}
+          <strong className="font-medium text-ink">Spent</strong>,{' '}
+          <strong className="font-medium text-ink">Left</strong> and{' '}
+          <strong className="font-medium text-ink">Est. left over</strong> keep one plain
+          colour each, so the two bars above are the ones your eye goes to. The one
+          exception:{' '}
           <strong className="font-medium text-ink">Left is your income minus your spending</strong>,
           not your budget minus your spending — money you actually still have — so it turns{' '}
           <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
           and reads below zero if you spend more than you earned.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">
+            Est. left over is the same question asked about the end of the period.
+          </strong>{' '}
+          Left tells you what you have right now; this tells you what you will have once the
+          rest of your budget goes out too. It is your income, minus your whole budget, minus
+          anything you have already spent that the budget didn't cover — so it answers
+          "if the rest of the month goes to plan, what am I actually keeping?" It turns{' '}
+          <span className="font-medium text-negative-600 dark:text-negative-400">red</span>{' '}
+          below zero, which means your plan doesn't fit your income, not that you have
+          overspent yet.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">Spending outside your budget counts
+          against it.</strong> That is worked out category by category: anything you spend
+          past a category's budget is money you hadn't planned for, and a category with no
+          budget at all counts in full. Doing it per category rather than on the totals
+          matters — otherwise one category coming in under would quietly hide another going
+          over, and the figure would look right while being wrong. When there is any, the
+          bar says how much it is counting. Budget nothing and this bar simply matches{' '}
+          <strong className="font-medium text-ink">Left</strong>: with no plan, there is
+          nothing still to spend.
         </p>
         <p>
           Under that, the bar is your whole month — or week, if that's your rhythm: spent
@@ -252,6 +284,23 @@ export default function HelpPage() {
         <p>
           Add a loan with what you borrowed, who from, and — worth doing — why. Then link
           the <strong className="font-medium text-ink">head</strong> you repay it through.
+        </p>
+        <p>
+          <strong className="font-medium text-ink">
+            Borrowed money can count as income for the month it arrived.
+          </strong>{' '}
+          The loan form asks <em>where did the money land?</em> — pick an income head and the
+          amount you borrowed is added to your income on the day you took it, so that month
+          adds up to what you actually had to spend. Leave it blank and the loan records no
+          income at all, which is what you want if the money went straight to a car dealer
+          and never passed through your hands.
+        </p>
+        <p>
+          That entry shows on your <Link className="underline hover:text-ink" to="/incomes">Income</Link>{' '}
+          screen marked <em>Loan</em>, and it is the one entry there you can't edit or delete
+          in place — <em>Open loan</em> takes you to where it does change. Change the amount
+          or the date on the loan and the entry follows; remove the loan and it goes with it.
+          Two places to change one figure is two answers, so there is only one.
         </p>
         <p>
           <strong className="font-medium text-ink">
@@ -300,9 +349,10 @@ export default function HelpPage() {
           mixing the two would make that percentage mean nothing.
         </p>
         <p className="text-ink-muted">
-          Nothing here changes your budget or your totals. A repayment is still an ordinary
-          expense, counted once, exactly as before — removing a loan leaves every expense
-          where it is.
+          Apart from that one entry, nothing here changes your budget or your totals. A
+          repayment is still an ordinary expense, counted once, exactly as before — removing
+          a loan leaves every expense where it is. Money you lend out never touches your
+          income either: it went out, it didn't come in.
         </p>
       </Step>
 

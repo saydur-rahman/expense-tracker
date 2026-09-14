@@ -9,6 +9,9 @@ export interface Income {
   amount: number
   incomeDate: string
   note: string | null
+  /** Set when this entry is money a loan handed over. It is read-only here. */
+  loanId: string | null
+  loanName: string | null
 }
 
 export interface IncomeList {

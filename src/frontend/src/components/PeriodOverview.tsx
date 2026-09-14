@@ -7,13 +7,18 @@ import Bar from './charts/Bar'
 import { card } from './ui'
 
 /**
- * The period read as four bars on one scale: what you planned to spend, what has come
- * in, what has gone out, what that leaves you.
+ * The period read as five bars on one scale: what you planned to spend, what has come
+ * in, what has gone out, what that leaves you, and where it is heading.
  *
  * **The budget is the base.** Every bar is drawn against the same scale and a budget line
- * runs down all four at the same place, so income falling short of the budget or running
+ * runs down all five at the same place, so income falling short of the budget or running
  * past it is something you see rather than something you work out. The line is drawn over
  * the fills, so a bar that beats the budget visibly crosses it.
+ *
+ * **Left and Est. left over answer different questions** and are next to each other on
+ * purpose: Left is income minus what has actually gone out, Est. left over is what remains
+ * once the rest of the budget follows it. With no budget set the two are the same figure,
+ * and the bar says so rather than looking duplicated.
  *
  * It sits above the Expense/Income tabs and is deliberately outside them — switching tabs
  * changes the breakdown underneath, never this. Both the dashboard and the Budgets screen
@@ -27,17 +32,25 @@ export default function PeriodOverview({
   kind: PeriodKind
 }) {
   const { format } = useMoney()
-  const { totalBudget, totalIncome, totalSpent, totalSaved } = summary
+  const { totalBudget, totalIncome, totalSpent, totalSaved, extraExpenses, estimatedLeftOver } =
+    summary
 
   const span = kind === 'Week' ? 'this week' : 'this month'
   const health = readBudgetHealth(totalBudget, totalIncome)
   const covered = health.tone !== 'short' && health.tone !== 'none'
   const overspent = totalSaved < 0
+  const shortfall = estimatedLeftOver < 0
 
   // One scale for all four, so their lengths are comparable and the budget line lands in
   // the same place on each. Left is taken by magnitude: an overspend draws a short red
   // stub rather than nothing at all.
-  const scale = Math.max(totalBudget, totalIncome, totalSpent, Math.abs(totalSaved))
+  const scale = Math.max(
+    totalBudget,
+    totalIncome,
+    totalSpent,
+    Math.abs(totalSaved),
+    Math.abs(estimatedLeftOver),
+  )
   const width = (value: number) => (scale > 0 ? (Math.abs(value) / scale) * 100 : 0)
   const budgetMark = scale > 0 && totalBudget > 0 ? width(totalBudget) : null
 
@@ -94,6 +107,27 @@ export default function PeriodOverview({
         // breaking the rule for.
         fill={overspent ? 'bg-negative-500' : 'bg-ink-muted'}
         mark={budgetMark}
+      />
+
+      <Bar
+        label="Est. left over"
+        value={format(estimatedLeftOver)}
+        caption="if the rest of your budget goes out too"
+        width={width(estimatedLeftOver)}
+        // Same rule as Left: no colour of its own, except when the forecast is a shortfall.
+        fill={shortfall ? 'bg-negative-500' : 'bg-ink-muted'}
+        mark={budgetMark}
+        note={
+          totalBudget === 0 ? (
+            <Note className="text-ink-muted">
+              Same as Left until you budget — with no plan there is nothing still to spend.
+            </Note>
+          ) : extraExpenses > 0 ? (
+            <Note className="text-ink-muted">
+              Counts {format(extraExpenses)} already spent outside your budget.
+            </Note>
+          ) : null
+        }
       />
 
       {totalIncome === 0 && (

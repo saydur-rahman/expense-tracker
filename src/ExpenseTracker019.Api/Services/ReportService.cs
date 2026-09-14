@@ -83,6 +83,17 @@ public class ReportService : IReportService
         summary.TotalIncome = summary.IncomeCategories.Sum(c => c.Spent);
         summary.TotalSaved = summary.TotalIncome - summary.TotalSpent;
 
+        // Spending the plan never accounted for. Taken per category — a category with no
+        // budget counts in full, and one running under does not cover another running over,
+        // which summing TotalSpent - TotalBudget would let it do. Head-level drift inside a
+        // category is deliberately not counted: rule 2 makes a category's budget the sum of
+        // its heads, so the category is the level the plan is actually made at.
+        summary.ExtraExpenses = summary.Categories.Sum(c => Math.Max(0m, c.Spent - (c.Budget ?? 0m)));
+
+        // A forecast, not a position: what is left if the rest of the budget goes out and
+        // nothing else does. TotalSaved answers the other question — where things stand now.
+        summary.EstimatedLeftOver = summary.TotalIncome - summary.TotalBudget - summary.ExtraExpenses;
+
         return summary;
     }
 

@@ -43,6 +43,24 @@ public class PeriodSummaryDto
     /// <summary>Income minus spending for the period. Negative means you spent more than you earned.</summary>
     public decimal TotalSaved { get; set; }
 
+    /// <summary>
+    /// Spending the budget did not account for: per category, whatever went past its
+    /// budget, with a category carrying no budget at all counting in full.
+    /// </summary>
+    /// <remarks>
+    /// Summed per category rather than as <c>TotalSpent - TotalBudget</c> so one category
+    /// running under cannot quietly cover another running over — the total would look
+    /// right and be wrong, the same reason a loan portfolio's outstanding is summed per loan.
+    /// </remarks>
+    public decimal ExtraExpenses { get; set; }
+
+    /// <summary>
+    /// What the period ends with if the rest of the budget is spent and nothing else is:
+    /// <see cref="TotalIncome"/> − <see cref="TotalBudget"/> − <see cref="ExtraExpenses"/>.
+    /// A forecast, unlike <see cref="TotalSaved"/>, which is where things actually stand.
+    /// </summary>
+    public decimal EstimatedLeftOver { get; set; }
+
     /// <summary>The spending breakdown — the dashboard's "Expense" tab.</summary>
     public List<CategorySummaryDto> Categories { get; set; } = new();
 

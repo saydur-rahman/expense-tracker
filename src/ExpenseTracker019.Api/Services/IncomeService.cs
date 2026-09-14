@@ -54,6 +54,8 @@ public class IncomeService : IIncomeService
                 Amount = i.Amount,
                 IncomeDate = i.IncomeDate,
                 Note = i.Note,
+                LoanId = i.LoanId,
+                LoanName = i.Loan!.Name,
             })
             .ToListAsync();
 
@@ -93,8 +95,11 @@ public class IncomeService : IIncomeService
 
         var income = await _db.Incomes
             .IgnoreQueryFilters()
+            .Include(i => i.Loan)
             .FirstOrDefaultAsync(i => i.Id == incomeId && i.UserId == userId)
             ?? throw new NotFoundAppException("Income not found.");
+
+        RefuseIfLoanOwned(income, "change");
 
         var head = await GetActiveOwnedIncomeHeadAsync(userId, request.HeadId);
 
@@ -113,11 +118,30 @@ public class IncomeService : IIncomeService
     {
         var income = await _db.Incomes
             .IgnoreQueryFilters()
+            .Include(i => i.Loan)
             .FirstOrDefaultAsync(i => i.Id == incomeId && i.UserId == userId)
             ?? throw new NotFoundAppException("Income not found.");
 
+        RefuseIfLoanOwned(income, "remove");
+
         _db.Incomes.Remove(income);
         await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// A loan's proceeds row belongs to the loan. Editing it here would let the amount say
+    /// one thing and the loan another, with nothing to say which is right — so the answer
+    /// is a pointer back to the loan, not a second place to change the figure.
+    /// </summary>
+    private static void RefuseIfLoanOwned(Income income, string verb)
+    {
+        if (income.LoanId is null)
+        {
+            return;
+        }
+
+        throw new ValidationAppException(
+            $"This is the money you borrowed for “{income.Loan!.Name}”. To {verb} it, open that loan — the entry follows whatever you set there.");
     }
 
     private static void Validate(SaveIncomeRequest request)
@@ -163,6 +187,8 @@ public class IncomeService : IIncomeService
                    Amount = i.Amount,
                    IncomeDate = i.IncomeDate,
                    Note = i.Note,
+                   LoanId = i.LoanId,
+                   LoanName = i.Loan!.Name,
                })
                .FirstAsync();
 }

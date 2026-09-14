@@ -14,6 +14,12 @@ namespace ExpenseTracker019.Api.Services;
 /// simply an expense on a linked head dated on or after the loan was taken, and every
 /// figure is a SUM over those rows at read time — so editing or deleting an old expense
 /// moves the loan with it, with nothing to keep in sync.
+///
+/// The one row this service does write is the loan's proceeds: an <see cref="Income"/> for
+/// the amount borrowed, dated the day it was taken, on a head the user names. That is what
+/// puts a loan into the month's income total. It is re-derived from the loan on every save
+/// and removed with it, and the income screen refuses to touch it, so there is still only
+/// one place any of these figures can be changed.
 /// </remarks>
 public class LoanService : ILoanService
 {
@@ -159,6 +165,7 @@ public class LoanService : ILoanService
 
         _db.Loans.Add(loan);
         await ApplyHeadsAsync(userId, loan, request.HeadIds);
+        await ApplyProceedsAsync(userId, loan, request.ProceedsHeadId);
         await _db.SaveChangesAsync();
 
         return (await GetAsync(userId, loan.Id)).Loan;
@@ -178,6 +185,7 @@ public class LoanService : ILoanService
         loan.UpdatedAtUtc = DateTime.UtcNow;
 
         await ApplyHeadsAsync(userId, loan, request.HeadIds);
+        await ApplyProceedsAsync(userId, loan, request.ProceedsHeadId);
         await _db.SaveChangesAsync();
 
         return (await GetAsync(userId, loan.Id)).Loan;
@@ -188,7 +196,8 @@ public class LoanService : ILoanService
         var loan = await GetOwnedAsync(userId, loanId);
 
         // The expenses are untouched — they were ordinary spending before this loan
-        // existed and they stay ordinary spending after it is gone.
+        // existed and they stay ordinary spending after it is gone. The proceeds income
+        // is not: it is the loan's own row, and it cascades away with it.
         _db.Loans.Remove(loan);
         await _db.SaveChangesAsync();
     }
@@ -201,6 +210,9 @@ public class LoanService : ILoanService
             // Filters ignored so a head archived after it was linked still names itself
             // in the loan's history, the same reason the report queries ignore them.
             .ThenInclude(lh => lh.Head)
+                .ThenInclude(h => h.Category)
+        .Include(l => l.Proceeds!)
+            .ThenInclude(i => i.Head)
                 .ThenInclude(h => h.Category)
         .IgnoreQueryFilters();
 
@@ -296,6 +308,14 @@ public class LoanService : ILoanService
         PercentSettled = LoanMath.PercentSettled(loan.AmountTaken, repaid),
         Overpaid = LoanMath.Overpaid(loan.AmountTaken, repaid),
         IsSettled = LoanMath.IsSettled(loan.AmountTaken, repaid),
+        ProceedsHead = loan.Proceeds is null ? null : new LinkedHeadDto
+        {
+            HeadId = loan.Proceeds.HeadId,
+            HeadName = loan.Proceeds.Head.Name,
+            CategoryId = loan.Proceeds.Head.CategoryId,
+            CategoryName = loan.Proceeds.Head.Category.Name,
+            IsArchived = loan.Proceeds.Head.IsArchived || loan.Proceeds.Head.Category.IsArchived,
+        },
         Heads = loan.Heads
             .OrderBy(h => h.Head.Category.Name).ThenBy(h => h.Head.Name)
             .Select(h => new LinkedHeadDto
@@ -346,6 +366,85 @@ public class LoanService : ILoanService
         _db.LoanHeads.AddRange(wanted
             .Where(id => existing.All(lh => lh.HeadId != id))
             .Select(id => new LoanHead { LoanId = loan.Id, HeadId = id }));
+    }
+
+    /// <summary>
+    /// Keeps the loan's proceeds income in step with the loan: created when a head is first
+    /// named, re-derived on every save, removed when the head is cleared.
+    /// </summary>
+    /// <remarks>
+    /// The amount and date are copied rather than asked for, because they are the loan's:
+    /// borrowing 12,000 on the 1st is 12,000 of income on the 1st, and letting the two be
+    /// edited apart is how a month's total stops matching the loan it came from.
+    /// </remarks>
+    private async Task ApplyProceedsAsync(Guid userId, Loan loan, Guid? headId)
+    {
+        var existing = await _db.Incomes.FirstOrDefaultAsync(i => i.LoanId == loan.Id);
+
+        if (headId is null)
+        {
+            if (existing is not null)
+            {
+                _db.Incomes.Remove(existing);
+            }
+
+            return;
+        }
+
+        // Re-selecting the head it already uses must keep working even after that head is
+        // archived, or editing an old loan's name would fail on a head nobody can re-pick.
+        if (existing is null || existing.HeadId != headId)
+        {
+            var head = await GetIncomeHeadAsync(userId, headId.Value);
+            headId = head.Id;
+        }
+
+        // The note is derived too, so the row names itself on the income screen.
+        var note = loan.Lender is null ? loan.Name : $"{loan.Name} — from {loan.Lender}";
+
+        if (existing is null)
+        {
+            _db.Incomes.Add(new Income
+            {
+                UserId = userId,
+                LoanId = loan.Id,
+                HeadId = headId.Value,
+                Amount = loan.AmountTaken,
+                IncomeDate = loan.TakenOn,
+                Note = note,
+            });
+
+            return;
+        }
+
+        existing.HeadId = headId.Value;
+        existing.Amount = loan.AmountTaken;
+        existing.IncomeDate = loan.TakenOn;
+        existing.Note = note;
+        existing.UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// The head borrowed money may land in. Checked here rather than trusted from the
+    /// client for the same reason IncomeService checks it: income pointed at a spending
+    /// head would corrupt every total on the dashboard.
+    /// </summary>
+    private async Task<Head> GetIncomeHeadAsync(Guid userId, Guid headId)
+    {
+        // Not IgnoreQueryFilters: an archived head can keep holding a loan's proceeds but
+        // must not be newly chosen, exactly as with the heads that repay it.
+        var head = await _db.Heads
+            .Include(h => h.Category)
+            .FirstOrDefaultAsync(h => h.Id == headId && h.Category.UserId == userId)
+            ?? throw new NotFoundAppException("Head not found.");
+
+        if (head.Category.Kind != CategoryKind.Income)
+        {
+            throw new ValidationAppException(
+                $"“{head.Name}” is a spending head. Money you borrow arrives, so pick a head from an income category.");
+        }
+
+        return head;
     }
 
     private static string? Clean(string? value)
