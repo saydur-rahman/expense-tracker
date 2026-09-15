@@ -1,6 +1,8 @@
 # Deploying to Azure
 
-Everything here is chosen to cost **nothing**. Read the caveats before you rely on it.
+Everything here is free tier **except the database**, which costs about **USD 4.90/month**.
+Read the caveats before you rely on it — and read "What the free database actually cost us"
+below before trying to put it back on the free offer.
 
 ---
 
@@ -8,7 +10,7 @@ Everything here is chosen to cost **nothing**. Read the caveats before you rely 
 
 | Piece | Azure resource | Tier | Cost |
 |---|---|---|---|
-| Database (both services) | Azure SQL Database | Free offer — 100,000 vCore-seconds + 32 GB/month | £0 |
+| Database (both services) | Azure SQL Database | **Basic — 5 DTU, 2 GB** | ~USD 4.90/mo |
 | Auth019 + expense API | App Service on Linux | **F1 Free** plan, both apps on it | £0 |
 | React SPA | Static Web Apps | Free (TLS included) | £0 |
 | CI/CD | GitHub Actions | Free minutes | £0 |
@@ -25,9 +27,77 @@ Everything here is chosen to cost **nothing**. Read the caveats before you rely 
 
 To split them later: create a second database, point `ConnectionStrings__expensedb` at it, and redeploy. No code change — the schema separation already keeps them apart.
 
-**2. F1 Free is genuinely limited.** 60 CPU-minutes/day, 1 GB RAM shared by both apps, and **no Always On** — the first request after an idle period is slow while the app wakes. Exceed the daily CPU quota and App Service returns `403 Quota exceeded` until the next day. It is fine for yourself and a handful of testers; it is not fine for real traffic. The upgrade is B1 (~£10/month), a one-line `sku` change in the Bicep.
+**2. F1 Free is genuinely limited.** 60 CPU-minutes/day, 1 GB RAM shared by both apps, and **no Always On** — the first request after an idle period is slow while the app wakes. Exceed the daily CPU quota and both apps return `403 Quota exceeded` (the app's `state` reads `QuotaExceeded`) until **00:00 UTC**. It is fine for yourself and a handful of testers; it is not fine for real traffic. The upgrade is B1 Linux — $0.02/hour, about **USD 14.60/month** — a one-line `sku` change in the Bicep.
 
-The free SQL database is set to **auto-pause** when the monthly grant runs out rather than bill you. The app stops working until the grant renews on the 1st. Change `sqlFreeLimitExhaustionBehavior` to `BillOverUsage` only when uptime matters more than a zero bill.
+---
+
+## What the free database actually cost us
+
+The database started on the **Azure SQL free offer**: serverless General Purpose, 100,000
+vCore-seconds a month. On **14 Sep 2026 at 11:19 UTC** the grant ran out, `AutoPause` parked
+the database, and the whole site went down — the SPA still served (it is static) while every
+call behind it sat on a SQL connection timeout, so it looked like an endless loading spinner.
+
+**It was not bad luck; the free offer could not have covered this app.** Serverless bills for
+time *awake*, not work done, and `autoPauseDelay` cannot go below 60 minutes. So every single
+wake costs at least `60 min × 0.5 vCore = 1,800 vCore-seconds`, and 100,000 of them only ever
+buys about **55 wakes a month — under two app-opens a day**. F1 cold starts and this
+workflow's smoke test each spend one too. Measured burn was ~7,400 vCore-seconds/day.
+
+Paying for that same usage on serverless would be about **USD 39/month** at Southeast Asia
+list prices ($0.620892/vCore-hour × ~63 vCore-hours). **Basic is USD 4.90 flat** and, being
+always on, also removes the 30–60 second stall auto-pause caused on the first request of the
+day. The database is 33 MB, so Basic's 2 GB ceiling is nowhere near binding.
+
+If 5 DTU proves too slow, `sqlServiceObjective` takes `S0` — 10 DTU, 250 GB, ~USD 14.70/month.
+
+**The two failure modes are independent.** A healthy database does not stop F1 from
+exhausting its 60 CPU-minutes a day, which is a separate `403` with the app's `state` reading
+`QuotaExceeded`, clearing at 00:00 UTC.
+
+### The cost alert
+
+A resource-group-scoped monthly budget, `expensetracker019-monthly`, is set at **USD 15**
+with mail on **50% / 80% / 100% actual** and **100% forecasted**. Steady state is the USD 4.90
+database, so the first rung at USD 7.50 sits well clear of a normal month — an alert that
+fires every month stops being read. The forecast rung is the one that arrives while there is
+still time to act.
+
+It is **not** in `main.bicep`, because a budget needs a notification address and this
+repository is public. Recreate it with the template below, substituting your own:
+
+```bash
+az deployment group create -g expensetracker019-rg --name budget-setup   --template-file budget.bicep   --parameters contactEmails='["you@example.com"]' amount=15 startDate=2026-09-01
+```
+
+```bicep
+targetScope = 'resourceGroup'
+param contactEmails array
+param amount int = 15
+param startDate string          // first of a month, yyyy-MM-dd
+
+resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
+  name: 'expensetracker019-monthly'
+  properties: {
+    category: 'Cost'
+    amount: amount
+    timeGrain: 'Monthly'
+    timePeriod: { startDate: startDate }
+    notifications: {
+      Actual50:    { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 50,  contactEmails: contactEmails, thresholdType: 'Actual' }
+      Actual80:    { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 80,  contactEmails: contactEmails, thresholdType: 'Actual' }
+      Actual100:   { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 100, contactEmails: contactEmails, thresholdType: 'Actual' }
+      Forecast100: { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 100, contactEmails: contactEmails, thresholdType: 'Forecasted' }
+    }
+  }
+}
+```
+
+Note `az consumption budget show` runs against an older API version and prints `thresholdType`
+blank; read it back with `az rest ... ?api-version=2023-05-01` to see the real value.
+
+Raise `amount` if you move the App Service plan to B1 — the database plus B1 is about USD 19.50,
+which would breach a USD 15 budget every month.
 
 ---
 
