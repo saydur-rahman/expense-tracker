@@ -51,8 +51,53 @@ day. The database is 33 MB, so Basic's 2 GB ceiling is nowhere near binding.
 
 If 5 DTU proves too slow, `sqlServiceObjective` takes `S0` — 10 DTU, 250 GB, ~USD 14.70/month.
 
-**Watch it.** Set a cost alert on the resource group, and remember the two failure modes are
-independent: a healthy database does not stop F1 from exhausting its daily CPU.
+**The two failure modes are independent.** A healthy database does not stop F1 from
+exhausting its 60 CPU-minutes a day, which is a separate `403` with the app's `state` reading
+`QuotaExceeded`, clearing at 00:00 UTC.
+
+### The cost alert
+
+A resource-group-scoped monthly budget, `expensetracker019-monthly`, is set at **USD 15**
+with mail on **50% / 80% / 100% actual** and **100% forecasted**. Steady state is the USD 4.90
+database, so the first rung at USD 7.50 sits well clear of a normal month — an alert that
+fires every month stops being read. The forecast rung is the one that arrives while there is
+still time to act.
+
+It is **not** in `main.bicep`, because a budget needs a notification address and this
+repository is public. Recreate it with the template below, substituting your own:
+
+```bash
+az deployment group create -g expensetracker019-rg --name budget-setup   --template-file budget.bicep   --parameters contactEmails='["you@example.com"]' amount=15 startDate=2026-09-01
+```
+
+```bicep
+targetScope = 'resourceGroup'
+param contactEmails array
+param amount int = 15
+param startDate string          // first of a month, yyyy-MM-dd
+
+resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
+  name: 'expensetracker019-monthly'
+  properties: {
+    category: 'Cost'
+    amount: amount
+    timeGrain: 'Monthly'
+    timePeriod: { startDate: startDate }
+    notifications: {
+      Actual50:    { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 50,  contactEmails: contactEmails, thresholdType: 'Actual' }
+      Actual80:    { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 80,  contactEmails: contactEmails, thresholdType: 'Actual' }
+      Actual100:   { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 100, contactEmails: contactEmails, thresholdType: 'Actual' }
+      Forecast100: { enabled: true, operator: 'GreaterThanOrEqualTo', threshold: 100, contactEmails: contactEmails, thresholdType: 'Forecasted' }
+    }
+  }
+}
+```
+
+Note `az consumption budget show` runs against an older API version and prints `thresholdType`
+blank; read it back with `az rest ... ?api-version=2023-05-01` to see the real value.
+
+Raise `amount` if you move the App Service plan to B1 — the database plus B1 is about USD 19.50,
+which would breach a USD 15 budget every month.
 
 ---
 
