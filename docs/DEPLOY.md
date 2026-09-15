@@ -1,6 +1,8 @@
 # Deploying to Azure
 
-Everything here is chosen to cost **nothing**. Read the caveats before you rely on it.
+Everything here is free tier **except the database**, which costs about **USD 4.90/month**.
+Read the caveats before you rely on it — and read "What the free database actually cost us"
+below before trying to put it back on the free offer.
 
 ---
 
@@ -8,7 +10,7 @@ Everything here is chosen to cost **nothing**. Read the caveats before you rely 
 
 | Piece | Azure resource | Tier | Cost |
 |---|---|---|---|
-| Database (both services) | Azure SQL Database | Free offer — 100,000 vCore-seconds + 32 GB/month | £0 |
+| Database (both services) | Azure SQL Database | **Basic — 5 DTU, 2 GB** | ~USD 4.90/mo |
 | Auth019 + expense API | App Service on Linux | **F1 Free** plan, both apps on it | £0 |
 | React SPA | Static Web Apps | Free (TLS included) | £0 |
 | CI/CD | GitHub Actions | Free minutes | £0 |
@@ -25,9 +27,32 @@ Everything here is chosen to cost **nothing**. Read the caveats before you rely 
 
 To split them later: create a second database, point `ConnectionStrings__expensedb` at it, and redeploy. No code change — the schema separation already keeps them apart.
 
-**2. F1 Free is genuinely limited.** 60 CPU-minutes/day, 1 GB RAM shared by both apps, and **no Always On** — the first request after an idle period is slow while the app wakes. Exceed the daily CPU quota and App Service returns `403 Quota exceeded` until the next day. It is fine for yourself and a handful of testers; it is not fine for real traffic. The upgrade is B1 (~£10/month), a one-line `sku` change in the Bicep.
+**2. F1 Free is genuinely limited.** 60 CPU-minutes/day, 1 GB RAM shared by both apps, and **no Always On** — the first request after an idle period is slow while the app wakes. Exceed the daily CPU quota and both apps return `403 Quota exceeded` (the app's `state` reads `QuotaExceeded`) until **00:00 UTC**. It is fine for yourself and a handful of testers; it is not fine for real traffic. The upgrade is B1 Linux — $0.02/hour, about **USD 14.60/month** — a one-line `sku` change in the Bicep.
 
-The free SQL database is set to **auto-pause** when the monthly grant runs out rather than bill you. The app stops working until the grant renews on the 1st. Change `sqlFreeLimitExhaustionBehavior` to `BillOverUsage` only when uptime matters more than a zero bill.
+---
+
+## What the free database actually cost us
+
+The database started on the **Azure SQL free offer**: serverless General Purpose, 100,000
+vCore-seconds a month. On **14 Sep 2026 at 11:19 UTC** the grant ran out, `AutoPause` parked
+the database, and the whole site went down — the SPA still served (it is static) while every
+call behind it sat on a SQL connection timeout, so it looked like an endless loading spinner.
+
+**It was not bad luck; the free offer could not have covered this app.** Serverless bills for
+time *awake*, not work done, and `autoPauseDelay` cannot go below 60 minutes. So every single
+wake costs at least `60 min × 0.5 vCore = 1,800 vCore-seconds`, and 100,000 of them only ever
+buys about **55 wakes a month — under two app-opens a day**. F1 cold starts and this
+workflow's smoke test each spend one too. Measured burn was ~7,400 vCore-seconds/day.
+
+Paying for that same usage on serverless would be about **USD 39/month** at Southeast Asia
+list prices ($0.620892/vCore-hour × ~63 vCore-hours). **Basic is USD 4.90 flat** and, being
+always on, also removes the 30–60 second stall auto-pause caused on the first request of the
+day. The database is 33 MB, so Basic's 2 GB ceiling is nowhere near binding.
+
+If 5 DTU proves too slow, `sqlServiceObjective` takes `S0` — 10 DTU, 250 GB, ~USD 14.70/month.
+
+**Watch it.** Set a cost alert on the resource group, and remember the two failure modes are
+independent: a healthy database does not stop F1 from exhausting its daily CPU.
 
 ---
 

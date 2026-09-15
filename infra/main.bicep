@@ -1,21 +1,20 @@
 targetScope = 'resourceGroup'
 
 // =============================================================================
-// expensetracker019 — Azure deployment on free tiers only.
+// expensetracker019 — Azure deployment, as close to free as is actually workable.
 //
-// Everything here is chosen to cost nothing:
-//   Azure SQL Database  free offer  — 100,000 vCore-seconds + 32 GB/month, renews
-//                                     monthly, never expires. ONE per subscription,
-//                                     which is why both services share it under
-//                                     separate schemas (auth / dbo).
+//   Azure SQL Database  Basic       — 5 DTU, 2 GB, about USD 4.90/month. ONE database
+//                                     for both services, shared under separate schemas
+//                                     (auth / dbo). See the note on the resource for
+//                                     why this is no longer the free serverless offer.
 //   App Service plan    F1 Free     — hosts both APIs. 60 CPU-minutes/day, 1 GB RAM,
 //                                     no Always On, so expect a cold first request.
+//                                     Exceed the daily CPU and both apps return 403
+//                                     until 00:00 UTC. B1 Linux (~USD 14.60/month)
+//                                     removes the quota and adds Always On.
 //   Static Web Apps     Free        — hosts the React SPA, with TLS included.
 //
-// The free SQL database is set to AUTO-PAUSE when the monthly grant runs out rather
-// than bill: the app stops until the grant renews, but the bill stays at zero. Flip
-// `sqlFreeLimitExhaustionBehavior` to 'BillOverUsage' only when you want uptime more
-// than you want a zero bill.
+// So the standing bill is the database alone. Everything else is still free tier.
 //
 // Aspire is a development-time orchestrator only — it is not deployed. These are
 // plain App Service apps wired together with app settings.
@@ -98,12 +97,12 @@ pointed at the site by CNAME; `dns-txt-token` for an apex domain.
 ])
 param customDomainValidation string = 'cname-delegation'
 
-@description('What the free SQL database should do once the monthly grant is used up.')
+@description('Database service objective. Basic is 5 DTU / 2 GB and costs about USD 4.90 a month.')
 @allowed([
-  'AutoPause'
-  'BillOverUsage'
+  'Basic'
+  'S0'
 ])
-param sqlFreeLimitExhaustionBehavior string = 'AutoPause'
+param sqlServiceObjective string = 'Basic'
 
 var authAppName = '${namePrefix}-auth'
 var apiAppName = '${namePrefix}-api'
@@ -140,21 +139,24 @@ resource database 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: databaseName
   location: location
+  // Basic (DTU), not the serverless free offer. The free grant is 100,000 vCore-seconds
+  // a month and serverless bills for time *awake*, not work done: auto-pause cannot go
+  // below 60 minutes, so every wake costs at least 1,800 vCore-seconds and the grant only
+  // ever bought ~55 of them — under two app-opens a day. It ran out on 14 Sep 2026 and
+  // parked the database for the rest of the month, which took the whole site down.
+  //
+  // Paying for the same usage on serverless would be about USD 39 a month; Basic is USD
+  // 4.90 flat and, being always on, also loses the 30-60s stall auto-pause caused on the
+  // first request of the day. The database is 33 MB, so 2 GB is not close to a constraint.
+  // If 5 DTU proves too slow, S0 is the next rung at about USD 14.70.
   sku: {
-    // Serverless General Purpose is the only shape the free offer applies to.
-    name: 'GP_S_Gen5_2'
-    tier: 'GeneralPurpose'
-    family: 'Gen5'
-    capacity: 2
+    name: sqlServiceObjective
+    tier: sqlServiceObjective == 'Basic' ? 'Basic' : 'Standard'
   }
   properties: {
-    // 32 GB is the free ceiling; asking for more silently forfeits the free grant.
-    maxSizeBytes: 34359738368
-    autoPauseDelay: 60
-    minCapacity: json('0.5')
+    // Basic tops out at 2 GB. Raising this means moving to S0 or above.
+    maxSizeBytes: sqlServiceObjective == 'Basic' ? 2147483648 : 268435456000
     zoneRedundant: false
-    useFreeLimit: true
-    freeLimitExhaustionBehavior: sqlFreeLimitExhaustionBehavior
   }
 }
 
